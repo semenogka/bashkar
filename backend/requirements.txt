@@ -3,5 +3,20 @@ uvicorn[standard]>=0.27.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
-sqlalchemy>=2.0.0
+python-multipart>=0.0.9
+
+# База данных (PostgreSQL, async)
+sqlalchemy[asyncio]>=2.0.30
+asyncpg>=0.29.0
+greenlet>=3.0.0
 alembic>=1.13.0
+
+# LLM
+aiohttp>=3.9.0
+
+# Озвучка (TTS) и распознавание речи (ASR)
+transformers>=4.44.0
+torch>=2.2.0
+scipy>=1.11.0
+numpy>=1.26.0
+onnx-asr[cpu,hub]>=0.12,<0.13
