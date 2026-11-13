@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>БЕЗТЕЛ — Мой хаб</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="hub">
+
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-top">
+                <a href="hub.html" class="sidebar-brand">
+                    <div class="brand-emblem">
+                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
+                        <h1 class="brand-logo">БЕЗ<span>ТЕЛ</span></h1>
+                    </div>
+                </a>
+                <button type="button" class="drawer-close-btn" id="closeDrawerBtn">✕</button>
+            </div>
+
+            <nav class="nav-menu" aria-label="Разделы приложения">
+                <a href="chat.html" class="nav-item active"><span class="nav-index">00</span><span class="nav-label">Мой хаб</span></a>
+                <a href="chat.html" class="nav-item"><span class="nav-index">01</span><span class="nav-label">Чат с башкиром</span></a>
+                <a href="study.html" class="nav-item"><span class="nav-index">02</span><span class="nav-label">Изучение</span></a>
+                <a href="daily.html" class="nav-item"><span class="nav-index">03</span><span class="nav-label">Дейлик</span></a>
+                <a href="battles.html" class="nav-item"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
+                <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
+                <a href="profile.html" class="nav-item"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="api-status-box">
+                    <span class="status-led"></span>
+                    <span class="mono-tiny">AI API: Ожидание</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="workspace-wrapper">
+            <header class="editorial-header">
+                <div class="header-left-group">
+                    <button type="button" class="burger-btn" id="openDrawerBtn" aria-label="Открыть меню">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <span class="header-section-title">00 / МОЙ ХАБ</span>
+                </div>
+
+                <div class="user-identity">
+                    <span class="streak-chip" id="headerStreak">0 🔥</span>
+                    <div class="avatar-frame">
+                        <img id="userAvatar" src="" alt="Avatar" class="user-avatar hidden">
+                        <div id="avatarFallback" class="avatar-fallback">БТ</div>
+                    </div>
+                    <span class="user-name" id="userName">Ученик</span>
+                </div>
+            </header>
+
+            <main class="editorial-main">
+                <section class="hub-hero-grid">
+                    <div class="hub-welcome-card">
+                        <div class="welcome-top-row">
+                            <div>
+                                <span class="editorial-kicker">СӘЛӘМ • ПЕРСОНАЛЬНЫЙ РИТМ</span>
+                                <h2 class="monumental-title">Һаумыһығыҙ, <span id="heroUserName">Ученик</span></h2>
+                                <p class="editorial-lead">Каждый день по 5 минут — и речь Южного Урала станет родной.</p>
+                            </div>
+                            <div class="mascot-atmospheric">
+                                <div class="mascot-aura"></div>
+                                <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="Пчёлка БезТел" class="showcase-img">
+                            </div>
+                        </div>
+
+                        <div class="week-rhythm-bar">
+                            <div class="rhythm-header">
+                                <span class="mono-tiny">НЕДЕЛЬНЫЙ СТРИК</span>
+                                <span class="mono-tiny text-amber" id="streakMotivationText">Начни серию сегодня</span>
+                            </div>
+                            <div class="days-dots-row">
+                                <div class="day-pill"><span>Пн</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Вт</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Ср</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Чт</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Пт</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Сб</span><i class="dot"></i></div>
+                                <div class="day-pill"><span>Вс</span><i class="dot"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hub-goal-card">
+                        <span class="mono-tiny">ЦЕЛЬ НА СЕГОДНЯ</span>
+                        <div class="goal-ring-wrapper">
+                            <svg class="goal-svg" viewBox="0 0 120 120">
+                                <circle class="goal-track" cx="60" cy="60" r="50"></circle>
+                                <circle class="goal-progress" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"></circle>
+                            </svg>
+                            <div class="goal-center-text">
+                                <strong>0/10</strong>
+                                <span>слов</span>
+                            </div>
+                        </div>
+                        <a href="study.html" class="btn-primary-clean full-width-center">Продолжить занятие →</a>
+                    </div>
+                </section>
+
+                <section class="hub-content-grid">
+                    <article class="panel-card inspiration-slot-card" data-model-slot="hub-daily-insight">
+                        <div class="card-top-meta">
+                            <span class="slot-code">СЛОВО ИЛИ МУДРОСТЬ ДНЯ • AI SLOT</span>
+                            <span class="mono-tiny">Культурный код</span>
+                        </div>
+                        <div class="insight-body">
+                            <h3 class="insight-bashkir" id="hubInsightBashkir">[ {{ model.daily_wisdom_bashkir }} ]</h3>
+                            <p class="insight-translation" id="hubInsightTranslation">[ {{ model.daily_wisdom_translation }} ]</p>
+                            <p class="insight-note" id="hubInsightContext">Слот для выражения или пословицы дня от вашей языковой модели.</p>
+                        </div>
+                    </article>
+
+                    <article class="panel-card personal-metrics-card">
+                        <div class="card-top-meta">
+                            <span class="mono-tiny">МОЙ ПРОГРЕСС</span>
+                            <span class="mono-tiny text-amber">Лига Курая</span>
+                        </div>
+                        <div class="mini-stats-list">
+                            <div class="mini-stat-line"><span>Слов в словаре</span><strong>0</strong></div>
+                            <div class="mini-stat-line"><span>Точность с 1-й попытки</span><strong>—%</strong></div>
+                            <div class="mini-stat-line"><span>Дейлик сегодня</span><strong>Не пройден</strong></div>
+                        </div>
+                    </article>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>БЕЗТЕЛ — Чат с башкиром</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="chat">
+
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-top">
+                <a href="index.html" class="sidebar-brand">
+                    <div class="brand-emblem">
+                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
+                        <h1 class="brand-logo">БЕЗ<span>ТЕЛ</span></h1>
+                    </div>
+                </a>
+                <button type="button" class="drawer-close-btn" id="closeDrawerBtn">✕</button>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="hub.html" class="nav-item"><span class="nav-index">00</span><span class="nav-label">Мой хаб</span></a>
+                <a href="chat.html" class="nav-item active"><span class="nav-index">01</span><span class="nav-label">Чат с башкиром</span></a>
+                <a href="study.html" class="nav-item"><span class="nav-index">02</span><span class="nav-label">Изучение</span></a>
+                <a href="daily.html" class="nav-item"><span class="nav-index">03</span><span class="nav-label">Дейлик</span></a>
+                <a href="battles.html" class="nav-item"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
+                <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
+                <a href="profile.html" class="nav-item"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="api-status-box">
+                    <span class="status-led"></span>
+                    <span class="mono-tiny">AI API: Ожидание</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="workspace-wrapper">
+            <header class="editorial-header">
+                <div class="header-left-group">
+                    <button type="button" class="burger-btn" id="openDrawerBtn"><span></span><span></span><span></span></button>
+                    <span class="header-section-title">01 / ЧАТ С БАШКИРОМ</span>
+                </div>
+                <div class="user-identity">
+                    <span class="streak-chip" id="headerStreak">0 🔥</span>
+                    <div class="avatar-frame">
+                        <img id="userAvatar" src="" alt="Avatar" class="user-avatar hidden">
+                        <div id="avatarFallback" class="avatar-fallback">БТ</div>
+                    </div>
+                    <span class="user-name" id="userName">Ученик</span>
+                </div>
+            </header>
+
+            <main class="editorial-main chat-page-main">
+                <div class="chat-shell">
+                    <div class="chat-partner-bar">
+                        <div class="partner-info">
+                            <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="Башкир" class="partner-avatar">
+                            <div>
+                                <strong>Башкир AI</strong>
+                                <span class="mono-tiny">Текст + Голосовые сообщения</span>
+                            </div>
+                        </div>
+                        <div class="lang-select-wrap" style="margin-left:auto;">
+                            <label class="mono-tiny" style="margin-right:6px;">Язык перевода:</label>
+                            <select id="chatLangSelect" class="lang-select">
+                                <option value="ru">🇷🇺 Русский</option>
+                                <option value="kk">🇰🇿 Қазақша</option>
+                                <option value="zh">🇨🇳 中文</option>
+                            </select>
+                        </div>
+                        <span class="slot-code">LLM + ASR/TTS</span>
+                    </div>
+
+                    <div class="chat-messages-stream" id="chatMessagesStream" data-model-slot="chat-messages">
+                        <div class="empty-slot-box">
+                            <span class="slot-code">[СЛОТ ДИАЛОГА МОДЕЛИ]</span>
+                            <p>Напишите сообщение или нажмите на микрофон для отправки голосового.</p>
+                        </div>
+                    </div>
+
+                    <div class="voice-recording-bar hidden" id="voiceRecordingBar">
+                        <span class="rec-dot"></span>
+                        <span class="mono-tiny">Запись голосового... Нажмите ⏹ для отправки</span>
+                    </div>
+
+                    <form class="chat-input-bar" id="chatForm">
+                        <input type="text" id="chatTextInput" class="chat-input" placeholder="Написать сообщение..." autocomplete="off">
+                        <button type="submit" class="btn-icon-send" title="Отправить">↑</button>
+                        <button type="button" class="btn-icon-mic" id="micToggleBtn" title="Голосовое">🎙️</button>
+                    </form>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

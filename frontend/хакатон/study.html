@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>БЕЗТЕЛ — Изучение</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="study">
+
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-top">
+                <a href="index.html" class="sidebar-brand">
+                    <div class="brand-emblem">
+                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
+                        <h1 class="brand-logo">БЕЗ<span>ТЕЛ</span></h1>
+                    </div>
+                </a>
+                <button type="button" class="drawer-close-btn" id="closeDrawerBtn">✕</button>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="hub.html" class="nav-item"><span class="nav-index">00</span><span class="nav-label">Мой хаб</span></a>
+                <a href="chat.html" class="nav-item"><span class="nav-index">01</span><span class="nav-label">Чат с башкиром</span></a>
+                <a href="study.html" class="nav-item active"><span class="nav-index">02</span><span class="nav-label">Изучение</span></a>
+                <a href="daily.html" class="nav-item"><span class="nav-index">03</span><span class="nav-label">Дейлик</span></a>
+                <a href="battles.html" class="nav-item"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
+                <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
+                <a href="profile.html" class="nav-item"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="api-status-box">
+                    <span class="status-led"></span>
+                    <span class="mono-tiny">AI API: Ожидание</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="workspace-wrapper">
+            <header class="editorial-header">
+                <div class="header-left-group">
+                    <button type="button" class="burger-btn" id="openDrawerBtn"><span></span><span></span><span></span></button>
+                    <span class="header-section-title">02 / ИЗУЧЕНИЕ</span>
+                </div>
+                <div class="user-identity">
+                    <span class="streak-chip" id="headerStreak">0 🔥</span>
+                    <div class="avatar-frame">
+                        <img id="userAvatar" src="" alt="Avatar" class="user-avatar hidden">
+                        <div id="avatarFallback" class="avatar-fallback">БТ</div>
+                    </div>
+                    <span class="user-name" id="userName">Ученик</span>
+                </div>
+            </header>
+
+            <main class="editorial-main">
+                <div class="section-bar-minimal">
+                    <h2 class="section-title">Изучение</h2>
+                    <div class="segmented-control">
+                        <button type="button" class="seg-btn active" data-subtab="cards">Карточки</button>
+                        <button type="button" class="seg-btn" data-subtab="themes">Темы</button>
+                    </div>
+                </div>
+
+                <!-- Карточки -->
+                <div class="subtab-content active" id="sub-cards">
+                    <div class="panel-card">
+                        <div class="card-top-meta">
+                            <span class="slot-code">SLOT: #modelCardSlot</span>
+                            <span class="mono-tiny">Без повторной попытки</span>
+                        </div>
+
+                        <div class="flashcard-slot" id="modelCardSlot" data-model-slot="flashcard">
+                            <h3 class="slot-word" id="cardBashkirWord">[ {{ model.word_bashkir }} ]</h3>
+                            <span class="slot-phonetics" id="cardTranscription">[ {{ model.phonetics }} ]</span>
+                            <p class="slot-meaning" id="cardRussianTranslation">[ {{ model.translation_ru }} ]</p>
+                        </div>
+
+                        <div class="btn-row-clean">
+                            <button type="button" class="btn-ghost-danger" id="cardDontKnowBtn">Не знаю</button>
+                            <button type="button" class="btn-primary-clean" id="cardKnowBtn">Знаю →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Темы -->
+                <div class="subtab-content" id="sub-themes">
+                    <div class="panel-card">
+                        <div class="card-top-meta">
+                            <span class="slot-code">SLOT: #modelThemesSlot</span>
+                            <button type="button" class="btn-xs" id="requestThemesBtn">Запросить темы</button>
+                        </div>
+                        <div class="empty-slot-box" id="modelThemesSlot" data-model-slot="themes-list">
+                            <p>Пустой слот под список тем от <code>ModelService.fetchThemes()</code>.</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
