@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import AudioPlayer from "./components/AudioPlayer.jsx";
 
 const API = "http://localhost:8000";
 
@@ -65,6 +66,7 @@ export default function App() {
   const chunksRef = useRef([]);
   const bottomRef = useRef(null);
   const voiceRef = useRef(false); // последнее сообщение введено голосом
+  const [activeTrack, setActiveTrack] = useState(null);
 
   const toggleRecording = async () => {
     if (recording) {
@@ -111,6 +113,14 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Все озвученные дорожки — доступны в библиотеке аудио
+  const tracks = messages
+    .filter((m) => m.audio_url)
+    .map((m, i) => ({
+      url: m.audio_url,
+      label: m.text_ba ? m.text_ba.slice(0, 24) : `реплика ${i + 1}`,
+    }));
+
   const send = async () => {
     if (!input.trim() || loading) return;
     const isVoice = voiceRef.current;
@@ -142,6 +152,7 @@ export default function App() {
         voice: isVoice,
       };
       setMessages((m) => [...m, reply]);
+      if (reply.audio_url) setActiveTrack(reply.audio_url);
       // Голосовой ввод -> озвучиваем ответ, чтобы ученик проверил речь
       if (isVoice && data.audio_url) {
         setTimeout(() => new Audio(`${API}${data.audio_url}`).play(), 250);
@@ -151,10 +162,6 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const playAudio = (url) => {
-    if (url) new Audio(`${API}${url}`).play();
   };
 
   return (
@@ -190,7 +197,7 @@ export default function App() {
                     </div>
                   )}
                   {m.audio_url && (
-                    <button onClick={() => playAudio(m.audio_url)} style={{ marginTop: 6, background: "none", border: "none", cursor: "pointer", fontSize: 20 }}>🔊</button>
+                    <AudioPlayer src={m.audio_url} api={API} />
                   )}
                 </>
               )}
@@ -198,6 +205,38 @@ export default function App() {
           </div>
         ))}
         {loading && <div style={{ color: "#888", fontStyle: "italic" }}>🐝 Думаю...</div>}
+
+        {tracks.length > 0 && (
+          <div style={{ marginTop: 16, borderTop: "1px solid #eee", paddingTop: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8, color: "#666" }}>
+              🎧 Аудиодорожки ({tracks.length})
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {tracks.map((t, i) => (
+                <button
+                  key={t.url}
+                  onClick={() => setActiveTrack(t.url)}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    borderRadius: 14,
+                    cursor: "pointer",
+                    border: activeTrack === t.url ? "2px solid #FFC800" : "1px solid #E5E5E5",
+                    background: activeTrack === t.url ? "#FFF8E1" : "white",
+                    color: activeTrack === t.url ? "#7A5C00" : "#666",
+                    fontWeight: 700,
+                  }}
+                >
+                  #{i + 1} {t.label}
+                </button>
+              ))}
+            </div>
+            {activeTrack && (
+              <AudioPlayer src={activeTrack} api={API} />
+            )}
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
