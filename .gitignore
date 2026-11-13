@@ -24,3 +24,10 @@ build/
 # IDE
 .vscode/
 .idea/
+
+# Данные и сгенерированные файлы
+data/
+*.db
+backend/static/
+*.wav
+test_*.py
