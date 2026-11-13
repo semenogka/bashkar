@@ -140,6 +140,13 @@ async def duel_answer(payload: DuelAnswerIn, session: AsyncSession = Depends(get
     else:
         raise HTTPException(403, "Вы не участник дуэли")
 
+    # Дуэль тоже считается активностью дня (серия).
+    from app.services.gamification import touch_streak
+
+    answering_user = await session.get(User, payload.user_id)
+    if answering_user is not None:
+        await touch_streak(session, answering_user, xp=0)
+
     finished = False
     winner_id = None
     if duel.challenger_answer and (duel.opponent_id is None or duel.opponent_answer):

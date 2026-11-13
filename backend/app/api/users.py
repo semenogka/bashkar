@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.auth import get_current_user
 from app.db.base import get_session
 from app.models import Badge, ClassGroup, LangPair, School, User, UserBadge
 from app.schemas import (
@@ -87,6 +88,88 @@ async def list_lang_pairs(session: AsyncSession = Depends(get_session)):
         )
         for p in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Совместимость с фронтендом: /users/me (профиль, статистика)
+# ---------------------------------------------------------------------------
+@router.get("/me")
+async def me(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    pair_code = None
+    if user.lang_pair_id:
+        pair = await session.get(LangPair, user.lang_pair_id)
+        pair_code = pair.code if pair else None
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "school_id": user.school_id,
+        "class_id": user.class_id,
+        "lang_pair": pair_code,
+        "points": user.points,
+        "level": user.level or 1,
+        "created_at": user.created_at,
+    }
+
+
+@router.put("/me")
+async def update_me(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    if "lang_pair" in payload and payload["lang_pair"]:
+        pair = (
+            await session.execute(select(LangPair).where(LangPair.code == payload["lang_pair"]))
+        ).scalar_one_or_none()
+        if pair:
+            user.lang_pair_id = pair.id
+    if "class_id" in payload:
+        user.class_id = payload["class_id"]
+    if "school_id" in payload:
+        user.school_id = payload["school_id"]
+    await session.commit()
+    return {"ok": True}
+
+
+@router.get("/me/stats")
+async def me_stats(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    from app.models import Answer
+
+    total = (
+        await session.execute(select(func.count()).select_from(Answer).where(Answer.user_id == user.id))
+    ).scalar_one()
+    matched = (
+        await session.execute(
+            select(func.count()).select_from(Answer).where(
+                Answer.user_id == user.id, Answer.matched_consensus.is_(True)
+            )
+        )
+    ).scalar_one()
+    badges = (
+        await session.execute(
+            select(Badge.name)
+            .join(UserBadge, UserBadge.badge_code == Badge.code)
+            .where(UserBadge.user_id == user.id)
+        )
+    ).scalars().all()
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "points": user.points,
+        "level": user.level or 1,
+        "tasks_done": total,
+        "matched_consensus": matched,
+        "accuracy": round(matched / total * 100, 1) if total else 0.0,
+        "badges": list(badges),
+    }
 
 
 @router.post("/users", response_model=UserOut)

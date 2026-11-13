@@ -144,7 +144,13 @@ async def _get_or_create_streak_log(session: AsyncSession, user: User, today: da
 
 
 async def touch_streak(session: AsyncSession, user: User, *, xp: int = 0) -> StreakLog:
-    """Обновляет серию и дневную цель. Стрик не сбрасывается, если пропущен ровно 1 день."""
+    """Обновляет серию и дневную цель.
+
+    Стрик считается не чаще одного раза в календарные сутки:
+    - активен уже сегодня — серия не меняется;
+    - был активен вчера — серия +1;
+    - пропущен один день или больше — серия сбрасывается к 1.
+    """
     today = date.today()
     log = await _get_or_create_streak_log(session, user, today)
 
@@ -153,13 +159,11 @@ async def touch_streak(session: AsyncSession, user: User, *, xp: int = 0) -> Str
     else:
         gap = (today - user.last_active.date()).days
         if gap == 0:
-            pass  # уже засчитано сегодня
+            pass  # уже учитывался сегодня
         elif gap == 1:
             user.streak = (user.streak or 0) + 1
-        elif gap == 2:
-            pass  # один пропущенный день — серия сохраняется (freeze)
         else:
-            user.streak = 1
+            user.streak = 1  # пропущен день — сброс серии
 
     log.cards_done += 1
     log.xp_earned += xp

@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     debug: bool = True
 
+    # --- JWT (веб-аутентификация) ---
+    secret_key: str = "bashkar-dev-secret-change-me"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7
+
     # --- PostgreSQL (диск D) ---
     database_url: str = "postgresql+asyncpg://bashkar:bashkar@127.0.0.1:5432/bashkar"
     db_echo: bool = False
@@ -36,6 +41,7 @@ class Settings(BaseSettings):
     # --- Файлы ---
     data_dir: str = str(BASE_DIR.parent / "data")
     static_dir: str = str(BASE_DIR / "static")
+    frontend_dir: str = str(BASE_DIR.parent / "frontend" / "хакатон")
     dataset_file: str = str(BASE_DIR.parent / "data" / "phrasebooks.jsonl")
 
     # --- Геймификация ---

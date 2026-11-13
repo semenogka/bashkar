@@ -62,6 +62,10 @@ class Fragment(Base):
     source_type: Mapped[str | None] = mapped_column(String(32))  # phrasebook / book / audio
     topic: Mapped[str | None] = mapped_column(String(64))
     difficulty: Mapped[int] = mapped_column(Integer, default=1)
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("sources.id", ondelete="SET NULL"))
+    lang_pair: Mapped[str | None] = mapped_column(String(16))
+    auto_translation: Mapped[str | None] = mapped_column(Text)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     translations: Mapped[list["Translation"]] = relationship(

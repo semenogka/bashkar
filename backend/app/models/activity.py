@@ -156,6 +156,29 @@ class DailyTask(Base):
     __table_args__ = (UniqueConstraint("user_id", "day", "code", name="uq_daily_task"),)
 
 
+class DailyChallenge(Base):
+    """Дейлик дня — персонализированное задание для пользователя (одно на день)."""
+
+    __tablename__ = "daily_challenges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    fragment_id: Mapped[int] = mapped_column(ForeignKey("fragments.id", ondelete="CASCADE"), nullable=False)
+    proposed_translation: Mapped[str] = mapped_column(Text, nullable=False)
+    is_corrupted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Результат ответа пользователя (заполняется после /daily/check)
+    user_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "day", name="uq_daily_challenge_user_day"),
+    )
+
+
 class VocabProgress(Base):
     """Прогресс по конкретному слову/фразе — «дерево навыков» и повторения."""
 

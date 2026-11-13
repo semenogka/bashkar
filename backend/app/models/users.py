@@ -51,6 +51,10 @@ class User(Base):
     class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id", ondelete="SET NULL"))
     lang_pair_id: Mapped[int | None] = mapped_column(ForeignKey("lang_pairs.id"))
 
+    # Аутентификация (веб/бот)
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(200))
+
     # Геймификация
     xp: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[int] = mapped_column(Integer, default=1)
@@ -68,6 +72,19 @@ class User(Base):
     school: Mapped[School | None] = relationship(foreign_keys=[school_id])
     class_group: Mapped[ClassGroup | None] = relationship(foreign_keys=[class_id])
     lang_pair: Mapped["LangPair | None"] = relationship(foreign_keys=[lang_pair_id])
+
+    # Совместимость: «points» — это то же самое, что «xp».
+    @property
+    def points(self) -> int:
+        return self.xp or 0
+
+    @points.setter
+    def points(self, value: int) -> None:
+        self.xp = value or 0
+
+    @property
+    def lang_pair_code(self) -> str | None:
+        return self.lang_pair.code if self.lang_pair else None
 
     __table_args__ = (
         UniqueConstraint("external_id", name="uq_user_external"),

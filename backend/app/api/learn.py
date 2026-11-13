@@ -31,7 +31,6 @@ from app.services.agreement import normalize, reconcile
 from app.services.gamification import (
     add_xp,
     award_badges,
-    ensure_daily_tasks,
     note_answer_streak,
     refill_hearts,
     spend_heart,
@@ -323,15 +322,18 @@ async def daily(user_id: int, session: AsyncSession = Depends(get_session)):
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
-    refill_hearts(user)
-    tasks = await ensure_daily_tasks(session, user)
     today = date.today()
+    # задачи дня только читаем — не создаём и не обновляем при простом просмотре
+    tasks = (
+        await session.execute(
+            select(DailyTask).where(DailyTask.user_id == user_id, DailyTask.day == today)
+        )
+    ).scalars().all()
     log = (
         await session.execute(
             select(StreakLog).where(StreakLog.user_id == user_id, StreakLog.day == today)
         )
     ).scalar_one_or_none()
-    await session.commit()
     return DailyOut(
         tasks=[DailyTaskOut(
             id=t.id, code=t.code, title=t.title, progress=t.progress,
