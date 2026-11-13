@@ -115,12 +115,11 @@ export default function App() {
   }, [messages]);
 
   // Все озвученные дорожки — доступны в библиотеке аудио
-  const tracks = messages
-    .filter((m) => m.audio_url)
-    .map((m, i) => ({
-      url: m.audio_url,
-      label: m.text_ba ? m.text_ba.slice(0, 24) : `реплика ${i + 1}`,
-    }));
+  const tracks = [];
+  messages.forEach((m, i) => {
+    if (m.audio_url) tracks.push({ url: m.audio_url, label: m.text_ba ? m.text_ba.slice(0, 24) : `реплика ${i + 1}` });
+    if (m.proper_audio_url) tracks.push({ url: m.proper_audio_url, label: "✅ " + (m.proper || "").slice(0, 22) });
+  });
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -151,6 +150,9 @@ export default function App() {
         translation: data.translation,
         audio_url: data.audio_url,
         voice: isVoice,
+        clarify: data.clarify,
+        proper: data.proper,
+        proper_audio_url: data.proper_audio_url,
       };
       setMessages((m) => [...m, reply]);
       if (reply.audio_url) setActiveTrack(reply.audio_url);
@@ -195,6 +197,28 @@ export default function App() {
                   {m.voice && (
                     <div style={{ fontSize: 11, color: "#7A5C00", background: "#FFF8E1", borderRadius: 8, padding: "4px 8px", marginTop: 6, display: "inline-block" }}>
                       🎤 Проверь речь — ответ озвучен
+                    </div>
+                  )}
+                  {m.clarify && (
+                    <div style={{ fontSize: 12, color: "#7A5C00", background: "#FFF8E1", borderRadius: 8, padding: "6px 10px", marginTop: 6, fontWeight: 700 }}>
+                      🤔 Нужно уточнение — бот переспрашивает
+                    </div>
+                  )}
+                  {m.proper && (
+                    <div style={{ marginTop: 6, background: "#E8F8E8", border: "1px solid #B7E4B7", borderRadius: 10, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 11, color: "#2E7D32", fontWeight: 800, marginBottom: 2 }}>
+                        ✅ Правильное произношение
+                      </div>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>{m.proper}</div>
+                      {m.proper_audio_url && (
+                        <button
+                          onClick={() => new Audio(`${API}${m.proper_audio_url}`).play()}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, padding: 0 }}
+                          title="Послушать правильное произношение"
+                        >
+                          🔊 послушать
+                        </button>
+                      )}
                     </div>
                   )}
                   {m.audio_url && (
