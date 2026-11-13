@@ -66,7 +66,8 @@ export default function App() {
   const chunksRef = useRef([]);
   const bottomRef = useRef(null);
   const voiceRef = useRef(false); // последнее сообщение введено голосом
-  const [activeTrack, setActiveTrack] = useState(null);
+  const [activeTrack, setActiveTrack] = useState(null); // открытая дорожка
+  const playerRef = useRef(null);
 
   const toggleRecording = async () => {
     if (recording) {
@@ -197,7 +198,13 @@ export default function App() {
                     </div>
                   )}
                   {m.audio_url && (
-                    <AudioPlayer src={m.audio_url} api={API} />
+                    <button
+                      onClick={() => { setActiveTrack(m.audio_url); playerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                      style={{ marginTop: 6, background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
+                      title="Открыть в плеере"
+                    >
+                      ▶ <span style={{ fontSize: 12, color: "#666" }}>открыть в плеере</span>
+                    </button>
                   )}
                 </>
               )}
@@ -232,7 +239,9 @@ export default function App() {
               ))}
             </div>
             {activeTrack && (
-              <AudioPlayer src={activeTrack} api={API} />
+              <div ref={playerRef}>
+                <AudioPlayer src={activeTrack} api={API} />
+              </div>
             )}
           </div>
         )}
