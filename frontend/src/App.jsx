@@ -64,6 +64,7 @@ export default function App() {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const bottomRef = useRef(null);
+  const voiceRef = useRef(false); // последнее сообщение введено голосом
 
   const toggleRecording = async () => {
     if (recording) {
@@ -87,6 +88,7 @@ export default function App() {
           const data = await r.json();
           if (data.text) {
             setInput(data.text);
+            voiceRef.current = true; // сообщение введено голосом
           } else if (data.error) {
             alert("Ошибка распознавания: " + data.error);
           }
@@ -111,18 +113,39 @@ export default function App() {
 
   const send = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { role: "user", text: input.trim() };
+    const isVoice = voiceRef.current;
+    const userMsg = { role: "user", text: input.trim(), voice: isVoice };
+    const history = messages
+      .filter((m) => m.role === "user" ? m.text : m.text_ba)
+      .map((m) => ({ role: m.role, content: m.role === "user" ? m.text : m.text_ba }));
     setMessages((m) => [...m, userMsg]);
     setInput("");
+    voiceRef.current = false;
     setLoading(true);
     try {
       const r = await fetch(`${API}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg.text, target_lang: targetLang }),
+        body: JSON.stringify({
+          message: userMsg.text,
+          target_lang: targetLang,
+          history,
+          voice_input: isVoice,
+        }),
       });
       const data = await r.json();
-      setMessages((m) => [...m, { role: "assistant", text_ba: data.text_ba, translation: data.translation, audio_url: data.audio_url }]);
+      const reply = {
+        role: "assistant",
+        text_ba: data.text_ba,
+        translation: data.translation,
+        audio_url: data.audio_url,
+        voice: isVoice,
+      };
+      setMessages((m) => [...m, reply]);
+      // Голосовой ввод -> озвучиваем ответ, чтобы ученик проверил речь
+      if (isVoice && data.audio_url) {
+        setTimeout(() => new Audio(`${API}${data.audio_url}`).play(), 250);
+      }
     } catch (e) {
       setMessages((m) => [...m, { role: "assistant", text_ba: "Ошибка соединения", translation: "", audio_url: null }]);
     } finally {
@@ -153,11 +176,19 @@ export default function App() {
           <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
             <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 16, background: m.role === "user" ? "#DCF8C6" : "#F1F0F0" }}>
               {m.role === "user" ? (
-                <div>{m.text}</div>
+                <>
+                  <div>{m.text}</div>
+                  {m.voice && <div style={{ fontSize: 11, color: "#777", marginTop: 4 }}>🎤 голосовой ввод</div>}
+                </>
               ) : (
                 <>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{m.text_ba}</div>
                   {m.translation && <div style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>→ {m.translation}</div>}
+                  {m.voice && (
+                    <div style={{ fontSize: 11, color: "#7A5C00", background: "#FFF8E1", borderRadius: 8, padding: "4px 8px", marginTop: 6, display: "inline-block" }}>
+                      🎤 Проверь речь — ответ озвучен
+                    </div>
+                  )}
                   {m.audio_url && (
                     <button onClick={() => playAudio(m.audio_url)} style={{ marginTop: 6, background: "none", border: "none", cursor: "pointer", fontSize: 20 }}>🔊</button>
                   )}

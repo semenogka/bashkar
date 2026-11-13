@@ -52,7 +52,11 @@ class LLMClient:
                     raise RateLimitError(f"Rate limit: {text}")
                 raise LLMError(f"API error {resp.status}: {text}")
             data = await resp.json()
-            return data["choices"][0]["message"]["content"]
+            choices = data.get("choices") or []
+            if not choices:
+                raise LLMError(f"Empty choices: {str(data)[:300]}")
+            content = (choices[0].get("message") or {}).get("content") or ""
+            return content.strip()
 
     async def close(self):
         if self.session and not self.session.closed:
