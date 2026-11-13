@@ -63,6 +63,7 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const bottomRef = useRef(null);
 
   const toggleRecording = async () => {
     if (recording) {
