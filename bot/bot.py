@@ -31,7 +31,8 @@ async def main():
 
     await platform_client.ensure_schema()
     await bot.set_my_commands([
-        BotCommand(command="start", description="Начать"),
+        BotCommand(command="start", description="Башлау"),
+        BotCommand(command="stop", description="Хушлашыу"),
         BotCommand(command="profile", description="Профиль"),
         BotCommand(command="rating", description="Рейтинг"),
     ])

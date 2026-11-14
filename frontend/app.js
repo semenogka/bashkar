@@ -585,10 +585,12 @@ function reshapeNav() {
         el.textContent = el.textContent.replace(/^\s*\d+\s*\/\s*/, '');
     });
     document.querySelectorAll('a.nav-item[href="sentences.html"]').forEach((el) => el.remove());
-    document.querySelectorAll('a.nav-item[href="export.html"]').forEach((el) => {
+    document.querySelectorAll('a.nav-item[href="export.html"], a.nav-item[href="dictionary.html"]').forEach((el) => {
         el.setAttribute('href', 'dictionary.html');
         const label = el.querySelector('.nav-label');
         if (label) label.textContent = 'Словарь';
+        const img = el.querySelector('.nav-icon img');
+        if (img) img.setAttribute('src', 'img/slovar.svg');
     });
     document.querySelectorAll('nav.nav-menu').forEach((nav) => {
         const dict = [...nav.querySelectorAll('a.nav-item[href="dictionary.html"]')];
@@ -2233,6 +2235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let pvpSearchLeft = 0;
         let pvpGameTimer = null;
         let pvpPollTimer = null;
+        let pvpRound = 0;
 
         function stopPvpSearch(message) {
             if (pvpSearchTimer) {
@@ -2275,7 +2278,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         try { if (pvpSocket) pvpSocket.send(JSON.stringify({type:'progress', index: pvpCurrentIndex + 1, score: pvpScore, done: false})); } catch (e) {}
                         pvpCurrentIndex += 1;
+                        const round = pvpRound;
                         setTimeout(() => {
+                            if (round !== pvpRound || pvpFinished) return;
                             if (pvpCurrentIndex >= pvpQuestions.length) {
                                 finishPvp();
                             } else {
@@ -2317,8 +2322,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let pvpSocket = null;
 
+        function closePvpSocket() {
+            const socket = pvpSocket;
+            if (!socket) return;
+            pvpSocket = null;
+            try { socket.close(); } catch (e) {}
+        }
+
         findPvpBtn.addEventListener('click', () => {
-            if (pvpSocket) return;
+            closePvpSocket();
+            if (pvpGameTimer) { clearInterval(pvpGameTimer); pvpGameTimer = null; }
+            if (pvpSearchTimer) { clearInterval(pvpSearchTimer); pvpSearchTimer = null; }
+            pvpRound += 1;
             pvpFinished = false;
             pvpXpGiven = false;
             pvpCurrentIndex = 0;
@@ -2346,16 +2361,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const wsUrl = ModelService._wsOrigin() + '/api/v1/pvp/ws?client_id=' + encodeURIComponent(ModelService._clientId) + '&lang=' + encodeURIComponent(ModelService.lang());
             pvpSocket = new WebSocket(wsUrl);
 
-            const searchTimer = setInterval(() => {
+            const searchSocket = pvpSocket;
+            pvpSearchTimer = setInterval(() => {
                 pvpSearchLeft -= 1;
                 if (pvpSearchTimerText) pvpSearchTimerText.textContent = String(Math.max(0, pvpSearchLeft));
                 if (pvpSearchLeft > 0) {
                     findPvpBtn.textContent = `Поиск... ${pvpSearchLeft}s`;
                 } else {
-                    clearInterval(searchTimer);
+                    clearInterval(pvpSearchTimer);
+                    pvpSearchTimer = null;
+                    if (pvpSocket !== searchSocket) return;
                     try { pvpSocket.send(JSON.stringify({type:'cancel'})); } catch (e) {}
-                    pvpSocket.close();
-                    pvpSocket = null;
+                    closePvpSocket();
                     if (pvpSearchOverlay) pvpSearchOverlay.classList.add('hidden');
                     findPvpBtn.disabled = false;
                     findPvpBtn.textContent = 'Найти соперника';
@@ -2375,13 +2392,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (msg.type === 'searching') {
                     // ждём
-                } else if (msg.type === 'matched') {
-                    clearInterval(searchTimer);
+                } else if (msg.type === 'matched' && !msg.finished) {
+                    if (pvpSearchTimer) { clearInterval(pvpSearchTimer); pvpSearchTimer = null; }
+                    if (pvpGameTimer) { clearInterval(pvpGameTimer); pvpGameTimer = null; }
                     try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
                     if (pvpSearchOverlay) pvpSearchOverlay.classList.add('hidden');
                     findPvpBtn.disabled = false;
                     findPvpBtn.textContent = 'Найти соперника';
 
+                    pvpRound += 1;
+                    pvpFinished = false;
+                    pvpXpGiven = false;
+                    pvpCurrentIndex = 0;
+                    pvpScore = 0;
+                    pvpOpponentScore = 0;
                     pvpQuestions = msg.questions || [];
                     try { sessionStorage.setItem('beztel_pvp_match_id', msg.match_id || ''); } catch (e) {}
                     pvpMatchStartedAt = msg.started_at;
@@ -2389,12 +2413,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     pvpPromptText.textContent = 'Соперник найден! Переведите фразу:';
 
                     let pvpRem = pvpDuration;
+                    const round = pvpRound;
                     if (pvpTimerEl) pvpTimerEl.textContent = pvpRem + 's';
+                    if (pvpOpponentProgressEl) pvpOpponentProgressEl.textContent = 'Соперник: -';
                     pvpGameTimer = setInterval(() => {
+                        if (round !== pvpRound) {
+                            clearInterval(pvpGameTimer);
+                            pvpGameTimer = null;
+                            return;
+                        }
                         pvpRem -= 1;
                         if (pvpTimerEl) pvpTimerEl.textContent = Math.max(0, pvpRem) + 's';
                         if (pvpRem <= 0 && !pvpFinished) {
-                            try { pvpSocket.send(JSON.stringify({type:'time_up'})); } catch (e) {}
+                            try { if (pvpSocket) pvpSocket.send(JSON.stringify({type:'time_up'})); } catch (e) {}
                             finishPvp();
                         }
                     }, 1000);
@@ -2413,7 +2444,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     try { sessionStorage.removeItem('beztel_pvp_match_id'); } catch (e) {}
                     try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
                     showPvpResult(pvpScore, pvpOpponentScore, msg.winner, !!msg.winner_is_you);
-                    setTimeout(() => { try { if (pvpSocket) pvpSocket.close(); } catch (e) {} pvpSocket = null; }, 400);
+                    const finishedSocket = pvpSocket;
+                    setTimeout(() => {
+                        if (pvpSocket === finishedSocket) closePvpSocket();
+                    }, 400);
                     if (msg.winner_is_you && !pvpXpGiven) {
                         pvpXpGiven = true;
                         ModelService.awardXp(30, 'pvp_win').catch(() => {});
@@ -2431,7 +2465,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             pvpSocket.onclose = () => {
-                pvpSocket = null;
+                if (pvpSocket === searchSocket) pvpSocket = null;
             };
         });
 
