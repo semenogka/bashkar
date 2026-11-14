@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#FBF8F0">
+    <title>БЕЗТЕЛ — Админ</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=22">
+</head>
+<body data-page="admin">
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-top">
+                <a href="index.html" class="sidebar-brand">
+                    <div class="brand-emblem"><img src="img/domik-logo.png" alt="БезТел" class="brand-mascot-mini"></div>
+                    <div class="brand-titles">
+                        <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
+                        <h1 class="brand-logo">БЕЗ<span>ТЕЛ</span></h1>
+                    </div>
+                </a>
+                <button type="button" class="drawer-close-btn" id="closeDrawerBtn">✕</button>
+            </div>
+            <nav class="nav-menu" aria-label="Разделы приложения">
+                <a href="hub.html" class="nav-item"><span class="nav-icon"><img src="img/domik-logo.png" alt="" loading="lazy"></span><span class="nav-label">Мой хаб</span></a>
+                <a href="chat.html" class="nav-item"><span class="nav-icon"><img src="img/chat-bashkir.png" alt="" loading="lazy"></span><span class="nav-label">Чат с башкиром</span></a>
+                <a href="study.html" class="nav-item"><span class="nav-icon"><img src="img/kniga.png" alt="" loading="lazy"></span><span class="nav-label">Изучение</span></a>
+                <a href="daily.html" class="nav-item"><span class="nav-icon"><img src="img/galochka.png" alt="" loading="lazy"></span><span class="nav-label">Дейлик</span></a>
+                <a href="battles.html" class="nav-item"><span class="nav-icon"><img src="img/kubok.png" alt="" loading="lazy"></span><span class="nav-label">Состязания</span></a>
+                <a href="dictionary.html" class="nav-item"><span class="nav-icon"><img src="img/nota-seraya.png" alt="" loading="lazy"></span><span class="nav-label">Словарь</span></a>
+                <a href="profile.html" class="nav-item"><span class="nav-icon"><img src="img/zadumchivyy.png" alt="" loading="lazy"></span><span class="nav-label">Профиль</span></a>
+                <a href="leaderboard.html" class="nav-item"><span class="nav-icon"><img src="img/radostnyy.png" alt="" loading="lazy"></span><span class="nav-label">Рейтинг</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="api-status-box"><span class="status-led"></span><span class="mono-tiny">AI API: Ожидание</span></div>
+            </div>
+        </aside>
+        <div class="workspace-wrapper">
+            <header class="editorial-header">
+                <div class="header-left-group">
+                    <button type="button" class="burger-btn" id="openDrawerBtn" aria-label="Открыть меню"><span></span><span></span><span></span></button>
+                    <span class="header-section-title">Админ</span>
+                </div>
+                <div class="user-identity">
+                    <span class="streak-chip" id="headerStreak">0 🔥</span>
+                    <div class="avatar-frame">
+                        <img id="userAvatar" src="" alt="Avatar" class="user-avatar hidden">
+                        <div id="avatarFallback" class="avatar-fallback">БТ</div>
+                    </div>
+                    <span class="user-name" id="userName">Ученик</span>
+                </div>
+            </header>
+            <main class="editorial-main">
+                <div class="section-bar-minimal">
+                    <h2 class="section-title">Консоль админа</h2>
+                    <span class="mono-tiny">Школы, классы и роли</span>
+                </div>
+                <div id="adminRoot" class="school-grid">Загрузка...</div>
+            </main>
+        </div>
+    </div>
+    <script src="app.js?v=13"></script>
+    <script src="admin.js?v=2"></script>
+</body>
+</html>

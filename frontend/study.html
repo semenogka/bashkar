@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#FBF8F0">
+    <meta name="description" content="БЕЗТЕЛ — среда живого башкирского языка: чат с AI-носителем, карточки, дейлики и дуэли.">
+    <title>БЕЗТЕЛ — Изучение</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=22">
+</head>
+<body data-page="study">
+
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+
+    <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-top">
+                <a href="index.html" class="sidebar-brand">
+                    <div class="brand-emblem">
+                        <img src="img/domik-logo.png" alt="БезТел" class="brand-mascot-mini">
+                    </div>
+                    <div class="brand-titles">
+                        <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
+                        <h1 class="brand-logo">БЕЗ<span>ТЕЛ</span></h1>
+                    </div>
+                </a>
+                <button type="button" class="drawer-close-btn" id="closeDrawerBtn">✕</button>
+            </div>
+
+            <nav class="nav-menu" aria-label="Разделы приложения">
+                <a href="hub.html" class="nav-item"><span class="nav-icon"><img src="img/domik-logo.png" alt="" loading="lazy"></span><span class="nav-label">Мой хаб</span><span class="nav-index">00</span></a>
+                <a href="chat.html" class="nav-item"><span class="nav-icon"><img src="img/chat-bashkir.png" alt="" loading="lazy"></span><span class="nav-label">Чат с башкиром</span><span class="nav-index">01</span></a>
+                <a href="study.html" class="nav-item active"><span class="nav-icon"><img src="img/kniga.png" alt="" loading="lazy"></span><span class="nav-label">Изучение</span><span class="nav-index">02</span></a>
+                <a href="sentences.html" class="nav-item"><span class="nav-icon"><img src="img/flayta.png" alt="" loading="lazy"></span><span class="nav-label">Составь предложение</span><span class="nav-index">03</span></a>
+                <a href="daily.html" class="nav-item"><span class="nav-icon"><img src="img/galochka.png" alt="" loading="lazy"></span><span class="nav-label">Дейлик</span><span class="nav-index">04</span></a>
+                <a href="battles.html" class="nav-item"><span class="nav-icon"><img src="img/kubok.png" alt="" loading="lazy"></span><span class="nav-label">Состязания</span><span class="nav-index">05</span></a>
+                <a href="export.html" class="nav-item"><span class="nav-icon"><img src="img/nota-seraya.png" alt="" loading="lazy"></span><span class="nav-label">Экспорт базы</span><span class="nav-index">06</span></a>
+                <a href="profile.html" class="nav-item"><span class="nav-icon"><img src="img/zadumchivyy.png" alt="" loading="lazy"></span><span class="nav-label">Профиль</span><span class="nav-index">07</span></a>
+                <a href="leaderboard.html" class="nav-item"><span class="nav-icon"><img src="img/radostnyy.png" alt="" loading="lazy"></span><span class="nav-label">Рейтинг</span><span class="nav-index">08</span></a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="api-status-box">
+                    <span class="status-led"></span>
+                    <span class="mono-tiny">AI API: Ожидание</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="workspace-wrapper">
+            <header class="editorial-header">
+                <div class="header-left-group">
+                    <button type="button" class="burger-btn" id="openDrawerBtn"><span></span><span></span><span></span></button>
+                    <span class="header-section-title">02 / ИЗУЧЕНИЕ</span>
+                </div>
+                <div class="user-identity">
+                    <span class="streak-chip" id="headerStreak">0 🔥</span>
+                    <div class="avatar-frame">
+                        <img id="userAvatar" src="" alt="Avatar" class="user-avatar hidden">
+                        <div id="avatarFallback" class="avatar-fallback">БТ</div>
+                    </div>
+                    <span class="user-name" id="userName">Ученик</span>
+                </div>
+            </header>
+
+            <main class="editorial-main study-main">
+                <div class="lb-tabs study-modes" id="studyModes">
+                    <button type="button" class="lb-tab is-on" data-mode="words">Слова</button>
+                    <button type="button" class="lb-tab" data-mode="sentences">Предложения</button>
+                </div>
+                <div id="studyWordsPane">
+                <div class="section-bar-minimal">
+                    <div class="study-heading">
+                        <h2 class="section-title">Изучение</h2>
+                        <span class="study-subtitle">Уровни по 5 слов · сложность растёт вместе с вами</span>
+                    </div>
+                    <div class="study-stats" aria-label="Ваш прогресс">
+                        <span class="study-stat"><strong id="studyKnownWords">0</strong> слов знаю</span>
+                        <span class="study-stat study-stat--stars"><span class="star-glyph" aria-hidden="true">★</span> <strong id="studyTotalStars">0</strong>/<span id="studyStarsMax">24</span></span>
+                    </div>
+                </div>
+
+                <section class="level-map" aria-labelledby="levelMapTitle">
+                    <div class="level-map-top">
+                        <div class="level-map-title">
+                            <span class="level-map-kicker" id="studyTierLabel">СТУПЕНЬ A1 · 0 СЛОВ</span>
+                            <h3 id="levelMapTitle">Карта знаний</h3>
+                        </div>
+                        <p class="level-map-hint" id="levelMapHint">Сурок выглядывает из доступного уровня — нажмите на него.</p>
+                    </div>
+
+                    <div class="level-trail" id="levelTrail"></div>
+
+                    <div class="level-legend">
+                        <span><i class="legend-mark legend-mark--open" aria-hidden="true"></i> доступно</span>
+                        <span><i class="legend-mark legend-mark--star" aria-hidden="true">★</i> 3 звезды — норка закрыта</span>
+                        <span><i class="legend-mark legend-mark--closed" aria-hidden="true"></i> впереди</span>
+                    </div>
+                </section>
+
+                <div class="study-tip" role="note">
+                    <span aria-hidden="true">✦</span>
+                    <p><strong>5 слов за уровень.</strong> Соберите 3 звезды — сурок закроет норку дощечками. Если звёзд меньше, уровень можно перепройти.</p>
+                </div>
+                </div>
+
+                <div id="studySentencesPane" class="hidden">
+                <div class="section-bar-minimal">
+                    <div class="study-heading">
+                        <h2 class="section-title">Составь предложение</h2>
+                        <span class="study-subtitle">8 уровней по 5 фраз · лишние слова — часть испытания</span>
+                    </div>
+                    <div class="study-stats" aria-label="Ваш прогресс">
+                        <span class="study-stat"><strong id="sentenceSolvedCount">0</strong> фраз собрано</span>
+                        <span class="study-stat study-stat--stars"><span class="star-glyph" aria-hidden="true">★</span> <strong id="sentenceTotalStars">0</strong>/<span id="sentenceStarsMax">24</span></span>
+                    </div>
+                </div>
+                <section class="level-map sentence-level-map" aria-labelledby="sentenceMapTitle">
+                    <div class="level-map-top">
+                        <div class="level-map-title">
+                            <span class="level-map-kicker" id="sentenceTierLabel">СТУПЕНЬ A1 · 0 ФРАЗ</span>
+                            <h3 id="sentenceMapTitle">Тропа фраз</h3>
+                        </div>
+                        <p class="level-map-hint" id="sentenceMapHint">Сурок с флейтой ждёт у доступного уровня — нажмите на норку.</p>
+                    </div>
+                    <div class="level-trail" id="sentenceTrail"></div>
+                    <div class="level-legend">
+                        <span><i class="legend-mark legend-mark--open" aria-hidden="true"></i> доступно</span>
+                        <span><i class="legend-mark legend-mark--star" aria-hidden="true">★</i> 3 звезды — норка закрыта</span>
+                        <span><i class="legend-mark legend-mark--closed" aria-hidden="true"></i> впереди</span>
+                    </div>
+                </section>
+                <div class="study-tip" role="note">
+                    <span aria-hidden="true">✦</span>
+                    <p><strong>Соберите фразу из слов.</strong> Нажимайте на слова — они встанут в ответ. Лишние слова добавлены специально.</p>
+                </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div class="study-modal hidden" id="studyModal">
+        <div class="study-modal-backdrop" id="studyModalBackdrop"></div>
+        <section class="study-session" role="dialog" aria-modal="true" aria-labelledby="studySessionTitle" aria-describedby="studySessionHint">
+            <header class="study-session-head">
+                <div class="study-session-heading">
+                    <span class="study-session-kicker" id="studySessionKicker">УРОВЕНЬ 1 · ЗНАКОМСТВО</span>
+                    <h3 class="study-session-title" id="studySessionTitle">Слово 1 из 5</h3>
+                </div>
+                <button type="button" class="study-close-btn" id="studyCloseBtn" aria-label="Закрыть уровень">✕</button>
+            </header>
+
+            <div class="study-progress" aria-hidden="true"><span id="studyProgressFill"></span></div>
+            <p class="study-session-hint" id="studySessionHint">Выберите правильный перевод.</p>
+
+            <div class="study-game" id="studyGame">
+                <div class="study-word-card">
+                    <img src="img/poyushchiy.png" alt="" class="study-word-mascot" aria-hidden="true">
+                    <span class="study-word-phonetics" id="studyWordPhonetics"></span>
+                    <strong class="study-word" id="studyWord">—</strong>
+                    <button type="button" class="study-speak-btn" id="studySpeakBtn" aria-label="Прослушать слово">
+                        <span class="study-speak-icon" aria-hidden="true">🔊</span>
+                        <span class="study-speak-label">Послушать</span>
+                    </button>
+                </div>
+                <div class="study-options" id="studyOptions" role="group" aria-label="Варианты перевода"></div>
+                <p class="study-feedback" id="studyFeedback" role="status" aria-live="polite"></p>
+            </div>
+
+            <div class="study-result hidden" id="studyResult">
+                <img src="img/dovolnyy.png" alt="" class="study-result-mascot" id="studyResultMascot">
+                <div class="study-result-stars" id="studyResultStars" aria-hidden="true"></div>
+                <h4 class="study-result-title" id="studyResultTitle">Уровень пройден</h4>
+                <p class="study-result-text" id="studyResultText"></p>
+                <div class="study-result-actions">
+                    <button type="button" class="btn-primary-clean" id="studyRetryBtn">Пройти снова</button>
+                    <button type="button" class="btn-primary-clean hidden" id="studyNextBtn">Следующий уровень →</button>
+                    <button type="button" class="study-back-btn" id="studyBackBtn">К карте</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="study-modal hidden" id="sentenceModal">
+        <div class="study-modal-backdrop" id="sentenceModalBackdrop"></div>
+        <section class="study-session" role="dialog" aria-modal="true" aria-labelledby="sentenceSessionTitle" aria-describedby="sentenceSessionHint">
+            <header class="study-session-head">
+                <div class="study-session-heading">
+                    <span class="study-session-kicker" id="sentenceSessionKicker">УРОВЕНЬ 1 · ПРИВЕТСТВИЕ</span>
+                    <h3 class="study-session-title" id="sentenceSessionTitle">Фраза 1 из 5</h3>
+                </div>
+                <button type="button" class="study-close-btn" id="sentenceCloseBtn" aria-label="Закрыть уровень">✕</button>
+            </header>
+            <div class="study-progress" aria-hidden="true"><span id="sentenceProgressFill"></span></div>
+            <p class="study-session-hint" id="sentenceSessionHint">Соберите башкирскую фразу из слов ниже.</p>
+            <div class="study-game sentence-game" id="sentenceGame">
+                <div class="sentence-prompt">
+                    <span class="sentence-prompt-label">Переведите на башкирский</span>
+                    <p class="sentence-prompt-ru" id="sentencePromptRu">—</p>
+                    <button type="button" class="study-speak-btn" id="sentenceSpeakBtn" disabled aria-label="Прослушать готовую фразу">
+                        <span class="study-speak-icon" aria-hidden="true">🔊</span>
+                        <span class="sentence-speak-label">Прослушать фразу</span>
+                    </button>
+                    <img src="img/flayta.png" alt="" class="sentence-prompt-mascot" aria-hidden="true">
+                </div>
+                <div class="sentence-answer" id="sentenceAnswer" aria-label="Ваш ответ"></div>
+                <div class="sentence-bank" id="sentenceBank" role="group" aria-label="Слова для сборки"></div>
+                <div class="sentence-controls">
+                    <button type="button" class="btn-primary-clean" id="sentenceCheckBtn">Проверить</button>
+                    <button type="button" class="sentence-clear-btn" id="sentenceClearBtn" disabled>Сбросить</button>
+                </div>
+                <p class="study-feedback" id="sentenceFeedback" role="status" aria-live="polite"></p>
+            </div>
+            <div class="study-result hidden" id="sentenceResult">
+                <img src="img/dovolnyy.png" alt="" class="study-result-mascot" id="sentenceResultMascot">
+                <div class="study-result-stars" id="sentenceResultStars" aria-hidden="true"></div>
+                <h4 class="study-result-title" id="sentenceResultTitle">Уровень пройден</h4>
+                <p class="study-result-text" id="sentenceResultText"></p>
+                <div class="study-result-actions">
+                    <button type="button" class="btn-primary-clean" id="sentenceRetryBtn">Пройти снова</button>
+                    <button type="button" class="btn-primary-clean hidden" id="sentenceNextBtn">Следующий уровень →</button>
+                    <button type="button" class="study-back-btn" id="sentenceBackBtn">К карте</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js?v=13"></script>
+</body>
+</html>
