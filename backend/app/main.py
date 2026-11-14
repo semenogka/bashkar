@@ -1,6 +1,7 @@
 """Bashkar backend: FastAPI server for the Bashkir language school."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -32,6 +33,7 @@ from app.api.stats import router as stats_router  # noqa: E402
 from app.api.users import router as users_router  # noqa: E402
 from app.api.v1 import router as v1_router  # noqa: E402
 from app.services.content_import import import_phrasebooks, seed_reference_data  # noqa: E402
+from app.services.speech import warmup as warmup_speech  # noqa: E402
 
 
 @asynccontextmanager
@@ -48,6 +50,10 @@ async def lifespan(app: FastAPI):
             result = await import_phrasebooks(session)
         logger.info("Imported phrases count: %s", result)
     logger.info("Database is ready to work")
+    try:
+        await asyncio.to_thread(warmup_speech)
+    except Exception:
+        logger.exception("Speech models failed to load; they will load on the first request")
     yield
     await engine.dispose()
 

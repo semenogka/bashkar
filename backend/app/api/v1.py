@@ -1119,12 +1119,12 @@ async def pvp_websocket(
     await websocket.accept()
 
     old = _PVP_WS.get(uid)
+    _PVP_WS[uid] = websocket
     if old is not None and old is not websocket:
         try:
             await old.close()
         except Exception:
             pass
-    _PVP_WS[uid] = websocket
 
     try:
         while True:
@@ -1135,6 +1135,9 @@ async def pvp_websocket(
                 if uid in _PVP_WS_USER_MATCH:
                     mid = _PVP_WS_USER_MATCH[uid]
                     match = _PVP_WS_MATCHES.get(mid)
+                    if match and match.get("finished"):
+                        _PVP_WS_USER_MATCH.pop(uid, None)
+                        match = None
                     if match:
                         opp_uid = [u for u in match["users"] if u != uid][0]
                         finished = bool(match.get("finished"))
@@ -1265,6 +1268,8 @@ async def pvp_websocket(
         except Exception:
             pass
     finally:
+        if _PVP_WS.get(uid) is not websocket:
+            return
         _PVP_WS.pop(uid, None)
         _PVP_WS_WAITING.discard(uid)
         mid = _PVP_WS_USER_MATCH.get(uid)

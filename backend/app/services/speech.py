@@ -1,4 +1,4 @@
-"""Синтез речи (TTS) и распознавание речи (ASR) — асинхронно, с ленивой загрузкой моделей."""
+"""Синтез речи (TTS) и распознавание речи (ASR). Модели поднимаются при старте сервера."""
 from __future__ import annotations
 
 import asyncio
@@ -107,6 +107,22 @@ async def transcribe(path: str) -> str:
     """Распознаёт башкирскую речь из wav-файла."""
     text = await asyncio.to_thread(_asr_sync, path)
     return (text or "").strip()
+
+
+def warmup() -> None:
+    """Держит TTS и ASR в памяти до первого запроса пользователя."""
+    logger.info("Загружаю TTS-модель %s", settings.tts_model)
+    tokenizer, model = _tts_load()
+    with _tts_lock:
+        _tts_state["tokenizer"] = tokenizer
+        _tts_state["model"] = model
+    logger.info("TTS-модель готова")
+
+    logger.info("Загружаю ASR-модель %s", settings.asr_model)
+    asr = _asr_load()
+    with _asr_lock:
+        _asr_state["model"] = asr
+    logger.info("ASR-модель готова")
 
 
 def to_int16_wav(src: str, dst: str) -> str:
