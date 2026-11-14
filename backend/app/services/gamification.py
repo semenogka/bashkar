@@ -13,6 +13,7 @@ from app.models import (
     Badge,
     DailyTask,
     StreakLog,
+    PointsEvent,
     User,
     UserAnswer,
     UserBadge,
@@ -129,7 +130,48 @@ def spend_heart(user: User) -> bool:
 
 # ---------------------------------------------------------------------------
 # Серия (streak) и ежедневные квесты
+# Сутки считаются по Уфе (UTC+5), как и рейтинги.
 # ---------------------------------------------------------------------------
+_UFA = timedelta(hours=5)
+
+
+def ufa_today() -> date:
+    return (datetime.utcnow() + _UFA).date()
+
+
+def consecutive_streak(days: set[date], today: date) -> int:
+    """Длина живой серии. Один заход серию не поднимает: нужно минимум два дня подряд.
+
+    Серия жива, если последний заход был сегодня или вчера по Уфе.
+    """
+    if not days:
+        return 0
+    latest = max(days)
+    if (today - latest).days > 1:
+        return 0
+    run = 0
+    cursor = latest
+    while cursor in days:
+        run += 1
+        cursor -= timedelta(days=1)
+    return run if run >= 2 else 0
+
+
+def longest_consecutive(days: set[date]) -> int:
+    best = 0
+    for day in days:
+        if day - timedelta(days=1) in days:
+            continue
+        run = 0
+        cursor = day
+        while cursor in days:
+            run += 1
+            cursor += timedelta(days=1)
+        if run >= 2:
+            best = max(best, run)
+    return best
+
+
 async def _get_or_create_streak_log(session: AsyncSession, user: User, today: date) -> StreakLog:
     log = (
         await session.execute(
@@ -143,35 +185,40 @@ async def _get_or_create_streak_log(session: AsyncSession, user: User, today: da
     return log
 
 
+async def refresh_streak(session: AsyncSession, user: User) -> int:
+    """Пересчитывает серию по дням заходов. Повторный заход в те же сутки ничего не добавляет."""
+    rows = (
+        await session.execute(select(StreakLog.day).where(StreakLog.user_id == user.id))
+    ).scalars().all()
+    days = set(rows)
+    value = consecutive_streak(days, ufa_today())
+    user.streak = value
+    user.longest_streak = longest_consecutive(days)
+    return value
+
+
+async def mark_visit(session: AsyncSession, user: User) -> int:
+    """Отмечает, что пользователь зашёл сегодня. Серия растёт только со второго дня подряд."""
+    await _get_or_create_streak_log(session, user, ufa_today())
+    return await refresh_streak(session, user)
+
+
 async def touch_streak(session: AsyncSession, user: User, *, xp: int = 0) -> StreakLog:
-    """Обновляет серию и дневную цель.
+    """Отмечает занятие за сегодня по Уфе и пересчитывает серию.
 
-    Стрик считается не чаще одного раза в календарные сутки:
-    - активен уже сегодня — серия не меняется;
-    - был активен вчера — серия +1;
-    - пропущен один день или больше — серия сбрасывается к 1.
+    Один день, даже с несколькими занятиями, серию не поднимает.
+    Она становится равна числу дней только когда заходы идут подряд два дня и больше.
+    Пропуск дня обнуляет серию.
     """
-    today = date.today()
+    today = ufa_today()
     log = await _get_or_create_streak_log(session, user, today)
-
-    if user.last_active is None:
-        user.streak = 1
-    else:
-        gap = (today - user.last_active.date()).days
-        if gap == 0:
-            pass  # уже учитывался сегодня
-        elif gap == 1:
-            user.streak = (user.streak or 0) + 1
-        else:
-            user.streak = 0  # пропущен день — сброс серии в ноль
-
     log.cards_done += 1
     log.xp_earned += xp
     if log.cards_done >= user.daily_goal:
         log.goal_reached = True
 
     user.last_active = datetime.utcnow()
-    user.longest_streak = max(user.longest_streak or 0, user.streak)
+    await refresh_streak(session, user)
     return log
 
 
@@ -186,7 +233,7 @@ async def ensure_daily_tasks(session: AsyncSession, user: User) -> list[DailyTas
     if existing:
         return list(existing)
 
-        tasks = [
+    tasks = [
         DailyTask(user_id=user.id, day=today, code="cards", title="Пройдите карточки",
                   progress=0, target=settings.daily_cards_goal, xp_reward=30),
         DailyTask(user_id=user.id, day=today, code="speed", title="Скоростной забег",
@@ -333,12 +380,18 @@ async def award_badges(session: AsyncSession, user: User) -> list[Badge]:
             session.add(badge)
             await session.flush()
         session.add(UserBadge(user_id=user.id, badge_code=badge.code, earned_at=datetime.utcnow()))
-        user.xp += badge.xp_reward
+        reward = badge.xp_reward or 0
+        user.xp = (user.xp or 0) + reward
+        if reward and user.id:
+            session.add(PointsEvent(user_id=user.id, points=reward, reason="badge"))
         earned.append(badge)
     return earned
 
 
-def add_xp(user: User, amount: int) -> None:
-    user.xp = (user.xp or 0) + max(0, amount)
+def add_xp(user: User, amount: int, session: AsyncSession | None = None, reason: str = "activity") -> None:
+    gained = max(0, int(amount or 0))
+    user.xp = (user.xp or 0) + gained
     user.level = level_for_xp(user.xp)
     user.league = league_for_xp(user.xp)
+    if session is not None and gained and user.id:
+        session.add(PointsEvent(user_id=user.id, points=gained, reason=reason))

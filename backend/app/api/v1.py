@@ -5,10 +5,13 @@ import datetime as dt
 import re
 import random
 import tempfile
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Query
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+import jwt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,8 +31,41 @@ from app.models import (
 from app.services.agreement import normalize
 from app.services.speech import to_int16_wav, transcribe
 from app.services.tutor import tutor_reply
+from app.core.config import settings
 
 router = APIRouter(prefix="/v1", tags=["v1"])
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_current_user_v1(
+    session: AsyncSession = Depends(get_session),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    telegram_id: str | None = Header(default=None, alias="X-Telegram-Id"),
+    telegram_name: str | None = Header(default=None, alias="X-Telegram-Name"),
+) -> User:
+    """Единая зависимость аутентификации для v1 API.
+
+    Приоритет:
+    1. JWT-токен (браузерный пользователь, вошёл через логин/регистрацию на сайте)
+    2. Telegram-заголовки (пользователь в Telegram WebApp)
+    3. Гость (fallback)
+    """
+    # 1. JWT — браузерный пользователь
+    if credentials:
+        token = credentials.credentials
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+            user_id = int(payload.get("sub"))
+            user = await session.get(User, user_id)
+            if user:
+                return user
+        except Exception:
+            pass
+
+    # 2. Telegram WebApp или гость
+    return await _resolve_user(session, telegram_id, telegram_name)
+
 
 # ---------------------------------------------------------------------------
 # Справочники
@@ -100,6 +136,66 @@ def _make_trap(correct: str) -> str | None:
     return correct.replace(" ", "  ")
 
 
+_WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def _tokens(text: str) -> frozenset[str]:
+    return frozenset(match.group(0).casefold() for match in _WORD_RE.finditer(text or ""))
+
+
+def _content_tokens(text: str) -> frozenset[str]:
+    """Слова перевода. Однобуквенные служебные (и, в) не мешают сравнению, иероглиф — слово."""
+    words = set()
+    for token in _tokens(text):
+        if any("\u4e00" <= char <= "\u9fff" for char in token) or len(token) > 1:
+            words.add(token)
+    return frozenset(words)
+
+
+def _same_answer(candidate: str, chosen: str) -> bool:
+    """Совпадение, перестановка тех же слов или общие слова с правильным ответом."""
+    left = (candidate or "").strip()
+    right = (chosen or "").strip()
+    if not left or left.casefold() == right.casefold():
+        return True
+    left_all, right_all = _tokens(left), _tokens(right)
+    if left_all and left_all == right_all:
+        return True
+    left_words, right_words = _content_tokens(left), _content_tokens(right)
+    return bool(left_words and right_words and left_words & right_words)
+
+
+async def _different_options(
+    session: AsyncSession,
+    correct: str,
+    pair_id: int,
+    fragment_id: int,
+    count: int,
+) -> list[str]:
+    """Правильный перевод и чужие слова из той же языковой пары."""
+    options = [correct.strip()]
+    rows = (
+        await session.execute(
+            select(Translation.translation)
+            .where(
+                Translation.lang_pair_id == pair_id,
+                Translation.fragment_id != fragment_id,
+            )
+            .order_by(func.random())
+            .limit(120)
+        )
+    ).scalars().all()
+    for text in rows:
+        text = (text or "").strip()
+        if any(_same_answer(text, option) for option in options):
+            continue
+        options.append(text)
+        if len(options) >= count:
+            break
+    random.shuffle(options)
+    return options
+
+
 # ---------------------------------------------------------------------------
 # Пользователь (Telegram или гость)
 # ---------------------------------------------------------------------------
@@ -154,14 +250,30 @@ async def _resolve_user(
 # ---------------------------------------------------------------------------
 # Хелперы выборки контента
 # ---------------------------------------------------------------------------
+CONTENT_LANGS = {"ru", "kk", "zh"}
+
+
+def _content_lang(value: str | None) -> str:
+    code = (value or "ru").split("-")[0].lower()
+    return code if code in CONTENT_LANGS else "ru"
+
+
 async def _ba_ru_pair(session: AsyncSession) -> LangPair | None:
     return (
         await session.execute(select(LangPair).where(LangPair.code == "ba-ru"))
     ).scalar_one_or_none()
 
 
-async def _random_card(session: AsyncSession) -> tuple[Fragment, Translation] | None:
-    pair = await _ba_ru_pair(session)
+async def _pair_for(session: AsyncSession, lang: str | None) -> LangPair | None:
+    code = f"ba-{_content_lang(lang)}"
+    pair = (
+        await session.execute(select(LangPair).where(LangPair.code == code))
+    ).scalar_one_or_none()
+    return pair or await _ba_ru_pair(session)
+
+
+async def _random_card(session: AsyncSession, lang: str | None = "ru") -> tuple[Fragment, Translation] | None:
+    pair = await _pair_for(session, lang)
     if pair is None:
         return None
     rows = (
@@ -181,23 +293,28 @@ async def _random_card(session: AsyncSession) -> tuple[Fragment, Translation] | 
 # ---------------------------------------------------------------------------
 # Хаб
 # ---------------------------------------------------------------------------
-_DAILY_INSIGHT: dict[dt.date, dict] = {}
+_DAILY_INSIGHT: dict[tuple, dict] = {}
 
 
 @router.get("/hub/insight")
-async def hub_insight(session: AsyncSession = Depends(get_session)) -> dict:
+async def hub_insight(
+    session: AsyncSession = Depends(get_session),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
+) -> dict:
     today = dt.date.today()
-    if today not in _DAILY_INSIGHT:
-        card = await _random_card(session)
+    lang = _content_lang(content_lang)
+    key = (today, lang)
+    if key not in _DAILY_INSIGHT:
+        card = await _random_card(session, lang)
         if card is None:
             raise HTTPException(404, "Нет карточек")
         frag, tr = card
-        _DAILY_INSIGHT[today] = {
+        _DAILY_INSIGHT[key] = {
             "bashkir_phrase": frag.text_ba,
             "translation_ru": tr.translation,
             "cultural_note": random.choice(CULTURAL_NOTES),
         }
-    return _DAILY_INSIGHT[today]
+    return _DAILY_INSIGHT[key]
 
 
 # ---------------------------------------------------------------------------
@@ -240,15 +357,13 @@ def _strip_links(text: str) -> str:
 async def chat_message(
     data: ChatMessageIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    reply = await tutor_reply(data.text, data.history, data.target_lang)
-    user = await _resolve_user(session, telegram_id, telegram_name)
+    reply = await tutor_reply(data.text, data.history, _content_lang(data.target_lang))
     if user is not None:
         from app.services.gamification import add_xp, touch_streak, update_daily_tasks
 
-        add_xp(user, 5)
+        add_xp(user, 5, session)
         await touch_streak(session, user, xp=5)
         await update_daily_tasks(session, user, card_done=True)
         await session.commit()
@@ -258,9 +373,10 @@ async def chat_message(
 @router.post("/chat/voice")
 async def chat_voice(
     file: UploadFile = File(...),
+    target_lang: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
 ) -> dict:
     suffix = Path(file.filename or "audio.wav").suffix or ".wav"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -283,12 +399,11 @@ async def chat_voice(
 
     if not text:
         raise HTTPException(400, "Речь не распознана")
-    reply = await tutor_reply(text, [], "ru")
-    user = await _resolve_user(session, telegram_id, telegram_name)
+    reply = await tutor_reply(text, [], _content_lang(target_lang or content_lang))
     if user is not None:
         from app.services.gamification import add_xp, touch_streak, update_daily_tasks
 
-        add_xp(user, 5)
+        add_xp(user, 5, session)
         await touch_streak(session, user, xp=5)
         await update_daily_tasks(session, user, card_done=True)
         await session.commit()
@@ -299,8 +414,11 @@ async def chat_voice(
 # Изучение: карточки и темы
 # ---------------------------------------------------------------------------
 @router.get("/cards/next")
-async def cards_next(session: AsyncSession = Depends(get_session)) -> dict:
-    card = await _random_card(session)
+async def cards_next(
+    session: AsyncSession = Depends(get_session),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
+) -> dict:
+    card = await _random_card(session, content_lang)
     if card is None:
         raise HTTPException(404, "Нет карточек")
     frag, tr = card
@@ -313,8 +431,12 @@ async def cards_next(session: AsyncSession = Depends(get_session)) -> dict:
 
 
 @router.get("/cards/batch")
-async def cards_batch(count: int = 20, session: AsyncSession = Depends(get_session)) -> list[dict]:
-    pair = await _ba_ru_pair(session)
+async def cards_batch(
+    count: int = 20,
+    session: AsyncSession = Depends(get_session),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
+) -> list[dict]:
+    pair = await _pair_for(session, content_lang)
     if pair is None:
         return []
     rows = (
@@ -341,10 +463,8 @@ class CardAnswerIn(BaseModel):
 async def cards_answer(
     data: CardAnswerIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     frag = await session.get(Fragment, data.fragment_id)
     if frag is None:
         raise HTTPException(404, "Фрагмент не найден")
@@ -364,7 +484,7 @@ async def cards_answer(
 
     xp = 10 if is_correct else 0
     if is_correct:
-        add_xp(user, xp)
+        add_xp(user, xp, session)
         note_answer_streak(user, True)
     else:
         note_answer_streak(user, False)
@@ -382,7 +502,15 @@ async def themes() -> list[dict]:
 @router.get("/lang-pairs")
 async def lang_pairs_v1(session: AsyncSession = Depends(get_session)) -> list[dict]:
     rows = (
-        await session.execute(select(LangPair).where(LangPair.enabled.is_(True)).order_by(LangPair.id))
+        await session.execute(
+            select(LangPair)
+            .where(
+                LangPair.enabled.is_(True),
+                LangPair.source_lang == "ba",
+                LangPair.target_lang.in_(tuple(CONTENT_LANGS)),
+            )
+            .order_by(LangPair.id)
+        )
     ).scalars().all()
     return [
         {
@@ -418,7 +546,7 @@ async def _process_daily_votes(session: AsyncSession, day: dt.date) -> None:
     for uid in majority:
         user = await session.get(User, uid)
         if user is not None:
-            add_xp(user, 15)
+            add_xp(user, 15, session)
             await touch_streak(session, user, xp=15)
     await session.commit()
 
@@ -453,10 +581,8 @@ async def _vote_stats(session: AsyncSession, day: dt.date) -> dict:
 @router.get("/daily/tasks")
 async def daily_tasks(
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> list[dict]:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     from app.services.gamification import ensure_daily_tasks
 
     tasks = await ensure_daily_tasks(session, user)
@@ -477,10 +603,9 @@ async def daily_tasks(
 @router.get("/daily/task")
 async def daily_task(
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     today = dt.date.today()
 
     # Завершить голосование за прошедшие дни: начислить XP большинству (по одному разу на день)
@@ -501,7 +626,7 @@ async def daily_task(
     ).scalar_one_or_none()
 
     if challenge is None:
-        card = await _random_card(session)
+        card = await _random_card(session, content_lang)
         if card is None:
             raise HTTPException(404, "Нет данных")
         frag, tr = card
@@ -554,10 +679,9 @@ class DailyCheckIn(BaseModel):
 async def daily_check(
     data: DailyCheckIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     today = dt.date.today()
 
     challenge = (
@@ -591,7 +715,7 @@ async def daily_check(
     ).scalars().first()
     reference = None
     if frag is not None:
-        pair = await _ba_ru_pair(session)
+        pair = await _pair_for(session, content_lang)
         if pair is not None:
             tr = (
                 await session.execute(
@@ -612,6 +736,12 @@ async def daily_check(
     await session.commit()
 
     if is_correct:
+        from app.services.gamification import add_xp, touch_streak, update_daily_tasks
+        add_xp(user, 10, session)
+        await touch_streak(session, user, xp=10)
+        await update_daily_tasks(session, user, card_done=True)
+        await session.commit()
+
         feedback = "Дөрөҫ! Башкирский перевод верный. 🔥"
     else:
         feedback = f"Табып ҡарағыҙ: правильный вариант — «{reference or data.original_proposed}»."
@@ -631,10 +761,8 @@ class DailyVoteIn(BaseModel):
 async def daily_vote(
     data: DailyVoteIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     today = dt.date.today()
     choice = "approve" if data.approved else "reject"
 
@@ -648,6 +776,10 @@ async def daily_vote(
     if already is None:
         session.add(DailyVote(day=today, user_id=user.id, choice=choice))
         await session.commit()
+        from app.services.gamification import add_xp, touch_streak
+        add_xp(user, 5, session)
+        await touch_streak(session, user, xp=5)
+        await session.commit()
 
     return await _vote_stats(session, today)
 
@@ -656,24 +788,20 @@ async def daily_vote(
 # Состязания
 # ---------------------------------------------------------------------------
 @router.get("/battles/prompt")
-async def battle_prompt(mode: str = "sprint", session: AsyncSession = Depends(get_session)) -> dict:
-    card = await _random_card(session)
+async def battle_prompt(
+    mode: str = "sprint",
+    session: AsyncSession = Depends(get_session),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
+) -> dict:
+    card = await _random_card(session, content_lang)
     if card is None:
         raise HTTPException(404, "Нет данных")
     frag, tr = card
     correct = tr.translation
-
-    options = [correct]
-    attempts = 0
-    while len(options) < (2 if mode == "pvp" else 4) and attempts < 20:
-        trap = _make_trap(correct)
-        if trap and trap not in options and trap != correct:
-            options.append(trap)
-        attempts += 1
-    while len(options) < (2 if mode == "pvp" else 4):
-        options.append(correct + ".")
-    random.shuffle(options)
-    correct_index = options.index(correct)
+    options = await _different_options(
+        session, correct, tr.lang_pair_id, frag.id, 2 if mode == "pvp" else 4
+    )
+    correct_index = options.index(correct.strip())
 
     if mode == "pvp":
         return {
@@ -687,6 +815,48 @@ async def battle_prompt(mode: str = "sprint", session: AsyncSession = Depends(ge
         "options": options,
         "correct_index": correct_index,
         "fragment_id": frag.id,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Предложение: составление предложения из слов (Duolingo-like)
+# ---------------------------------------------------------------------------
+
+class SentenceGenerateIn(BaseModel):
+    words: list[str]
+    level: int = 1
+
+
+class SentenceGenerateOut(BaseModel):
+    sentence_ba: str
+    translation_ru: str
+    words_used: list[str]
+
+
+@router.post("/sentence/generate", response_model=SentenceGenerateOut)
+async def sentence_generate(
+    data: SentenceGenerateIn,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Модель собирает предложение из заданных слов (можно лишние)."""
+    if not data.words:
+        raise HTTPException(400, "words required")
+
+    words = [w for w in data.words if w]
+    llm_reply = await tutor_reply(
+        f"Составь одно осмысленное предложение на башкирском языке из следующих слов: {', '.join(words)}. "
+        f"Уровень сложности: {data.level}. Разрешены лишние слова, но все ключевые слова должны быть использованы.",
+        [],
+        "ba",
+    )
+    text_ba = llm_reply.get("text_ba") or ""
+    if not text_ba:
+        text_ba = " ".join(words[:3])
+    translation = llm_reply.get("translation") or ""
+    return {
+        "sentence_ba": text_ba,
+        "translation_ru": translation,
+        "words_used": words,
     }
 
 
@@ -712,23 +882,14 @@ def _client_id(telegram_id: str | None, client_id: str | None) -> str:
     return client_id or telegram_id or "guest"
 
 
-async def _build_pvp_prompt(session: AsyncSession) -> dict:
-    card = await _random_card(session)
+async def _build_pvp_prompt(session: AsyncSession, lang: str = "ru") -> dict:
+    card = await _random_card(session, lang)
     if card is None:
         raise HTTPException(404, "Нет карточек")
     frag, tr = card
     correct = tr.translation
-    options = [correct]
-    attempts = 0
-    while len(options) < 2 and attempts < 20:
-        trap = _make_trap(correct)
-        if trap and trap not in options and trap != correct:
-            options.append(trap)
-        attempts += 1
-    while len(options) < 2:
-        options.append(correct + ".")
-    random.shuffle(options)
-    correct_index = options.index(correct)
+    options = await _different_options(session, correct, tr.lang_pair_id, frag.id, 2)
+    correct_index = options.index(correct.strip())
     return {
         "pvp_bashkir_phrase": frag.text_ba,
         "options": options,
@@ -740,9 +901,11 @@ async def _build_pvp_prompt(session: AsyncSession) -> dict:
 @router.post("/pvp/find")
 async def pvp_find(
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
     client_id: str | None = Header(default=None, alias="X-Client-Id"),
+    content_lang: str = Header(default="ru", alias="X-Content-Lang"),
 ) -> dict:
+    telegram_id = str(user.external_id) if user.external_id else None
     uid = _client_id(telegram_id, client_id)
 
     if uid in _USER_MATCH:
@@ -773,7 +936,7 @@ async def pvp_find(
     if opponent is not None:
         _PVP_WAITING.pop(opponent, None)
         _PVP_WAITING.pop(uid, None)
-        questions = [await _build_pvp_prompt(session) for _ in range(10)]
+        questions = [await _build_pvp_prompt(session, content_lang) for _ in range(10)]
         mid = _uuid.uuid4().hex
         _PVP_MATCHES[mid] = {
             "users": [uid, opponent],
@@ -803,9 +966,10 @@ async def pvp_find(
 
 @router.get("/pvp/status")
 async def pvp_status(
-    telegram_id: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
     client_id: str | None = Header(default=None, alias="X-Client-Id"),
 ) -> dict:
+    telegram_id = str(user.external_id) if user.external_id else None
     uid = _client_id(telegram_id, client_id)
     if uid in _USER_MATCH:
         mid = _USER_MATCH[uid]
@@ -857,9 +1021,10 @@ class PvpProgressIn(BaseModel):
 @router.post("/pvp/progress")
 async def pvp_progress(
     data: PvpProgressIn,
-    telegram_id: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
     client_id: str | None = Header(default=None, alias="X-Client-Id"),
 ) -> dict:
+    telegram_id = str(user.external_id) if user.external_id else None
     uid = _client_id(telegram_id, client_id)
     if uid not in _USER_MATCH:
         raise HTTPException(404, "Нет активного матча")
@@ -883,9 +1048,10 @@ async def pvp_progress(
 
 @router.post("/pvp/cancel")
 async def pvp_cancel(
-    telegram_id: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
     client_id: str | None = Header(default=None, alias="X-Client-Id"),
 ) -> dict:
+    telegram_id = str(user.external_id) if user.external_id else None
     uid = _client_id(telegram_id, client_id)
     _PVP_WAITING.pop(uid, None)
     mid = _USER_MATCH.pop(uid, None)
@@ -924,10 +1090,6 @@ async def _ws_finish(match: dict, session: AsyncSession | None = None, winner_ui
                 })
             except Exception:
                 pass
-            try:
-                await ws.close()
-            except Exception:
-                pass
     for u in users:
         _PVP_WS.pop(u, None)
         _PVP_WS_USER_MATCH.pop(u, None)
@@ -938,9 +1100,22 @@ async def pvp_websocket(
     websocket: WebSocket,
     client_id: str | None = Query(default=None),
     telegram_id: str | None = Query(default=None),
+    token: str | None = Query(default=None),
+    lang: str = Query(default="ru"),
     session: AsyncSession = Depends(get_session),
 ):
-    uid = _client_id(client_id, telegram_id)
+    # Пытаемся авторизовать по JWT-токену (браузерный пользователь)
+    user = None
+    if token:
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+            user_id = int(payload.get("sub"))
+            user = await session.get(User, user_id)
+        except Exception:
+            pass
+
+    effective_telegram_id = str(user.external_id) if (user and user.external_id) else telegram_id
+    uid = _client_id(client_id, effective_telegram_id)
     await websocket.accept()
 
     old = _PVP_WS.get(uid)
@@ -1010,7 +1185,7 @@ async def pvp_websocket(
 
                 if opponent is not None:
                     _PVP_WS_WAITING.discard(opponent)
-                    questions = [await _build_pvp_prompt(session) for _ in range(10)]
+                    questions = [await _build_pvp_prompt(session, lang) for _ in range(10)]
                     mid = _uuid.uuid4().hex
                     now = dt.datetime.utcnow()
                     _PVP_WS_MATCHES[mid] = {
@@ -1117,15 +1292,13 @@ class XpAwardIn(BaseModel):
 async def award_xp(
     data: XpAwardIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     from app.services.gamification import add_xp, touch_streak, update_daily_tasks
 
     amount = max(0, int(data.amount or 0))
     if amount:
-        add_xp(user, amount)
+        add_xp(user, amount, session)
         await touch_streak(session, user, xp=amount)
         if data.reason == "pvp_win":
             await update_daily_tasks(session, user, battle_done=True)
@@ -1143,15 +1316,13 @@ class SprintFinishIn(BaseModel):
 async def sprint_finish(
     data: SprintFinishIn,
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
     from app.services.gamification import add_xp, touch_streak, update_daily_tasks
 
     amount = max(0, int(data.score or 0))
     if amount:
-        add_xp(user, amount)
+        add_xp(user, amount, session)
         await touch_streak(session, user, xp=amount)
         await update_daily_tasks(session, user, speed_done=True)
         await session.commit()
@@ -1161,11 +1332,8 @@ async def sprint_finish(
 @router.get("/profile")
 async def profile(
     session: AsyncSession = Depends(get_session),
-    telegram_id: str | None = Header(default=None),
-    telegram_name: str | None = Header(default=None),
+    user: User = Depends(get_current_user_v1),
 ) -> dict:
-    user = await _resolve_user(session, telegram_id, telegram_name)
-
     total = (
         await session.execute(
             select(func.count()).select_from(UserAnswer).where(UserAnswer.user_id == user.id)
@@ -1194,7 +1362,10 @@ async def profile(
         )
     ).scalar_one()
 
-    from app.services.gamification import xp_for_level
+    from app.services.gamification import mark_visit, xp_for_level
+
+    await mark_visit(session, user)
+    await session.commit()
 
     lvl = user.level or 1
     base_xp = xp_for_level(lvl)
@@ -1204,6 +1375,7 @@ async def profile(
     return {
         "user_id": user.id,
         "username": user.name or user.username or "Гость",
+        "role": user.role or "student",
         "streak": user.streak or 0,
         "accuracy": accuracy,
         "rank": rank,
@@ -1212,4 +1384,209 @@ async def profile(
         "xp": user.xp or 0,
         "xp_current_level": progress_xp,
         "xp_for_next_level": need_xp,
+        "content_lang": await _user_content_lang(session, user),
+    }
+
+
+async def _user_content_lang(session: AsyncSession, user: User) -> str:
+    if not user.lang_pair_id:
+        return "ru"
+    pair = await session.get(LangPair, user.lang_pair_id)
+    if pair is None or not pair.code.startswith("ba-"):
+        return "ru"
+    return _content_lang(pair.code.split("-", 1)[1])
+
+
+class ProfileLangIn(BaseModel):
+    lang: str
+
+
+@router.post("/profile/language")
+async def set_profile_language(
+    data: ProfileLangIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user_v1),
+) -> dict:
+    lang = _content_lang(data.lang)
+    pair = await _pair_for(session, lang)
+    if pair is not None:
+        user.lang_pair_id = pair.id
+        await session.commit()
+    return {"lang": lang, "pair": pair.code if pair else None}
+
+
+# ---------------------------------------------------------------------------
+# Вход через Telegram (для сайта вне Telegram WebApp)
+# ---------------------------------------------------------------------------
+
+class TelegramAuthUrlOut(BaseModel):
+    url: str
+
+
+class TelegramAuthOut(BaseModel):
+    user_id: int
+    external_id: str | None
+    name: str | None
+    username: str | None
+    access_token: str
+    token_type: str = "bearer"
+
+
+class BrowserRegisterIn(BaseModel):
+    username: str
+    password: str
+    name: str | None = None
+
+
+class BrowserLoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+def _create_jwt(user: User) -> str:
+    now = int(time.time())
+    payload = {
+        "sub": str(user.id),
+        "role": user.role,
+        "iat": now,
+        "exp": now + settings.access_token_expire_minutes * 60,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+@router.get("/auth/telegram-url", response_model=TelegramAuthUrlOut)
+async def auth_telegram_url() -> dict:
+    """Возвращает ссылку на бота для входа через Telegram."""
+    return {
+        "url": f"https://t.me/{settings.bot_username}?start=webapp"
+        if settings.bot_username
+        else "https://t.me/bot_username?start=webapp"
+    }
+
+
+@router.post("/auth/telegram", response_model=TelegramAuthOut)
+async def auth_telegram(
+    session: AsyncSession = Depends(get_session),
+    telegram_id: str | None = Header(default=None, alias="X-Telegram-Id"),
+    telegram_name: str | None = Header(default=None, alias="X-Telegram-Name"),
+) -> dict:
+    """Создаёт/возвращает пользователя по Telegram ID и выдаёт JWT-токен."""
+    if not telegram_id:
+        raise HTTPException(400, "telegram-id header required")
+    user = await _resolve_user(session, telegram_id, telegram_name)
+    await session.commit()
+    token = _create_jwt(user)
+    return {
+        "user_id": user.id,
+        "external_id": user.external_id,
+        "name": user.name,
+        "username": user.username,
+        "access_token": token,
+        "token_type": "bearer",
+    }
+
+
+@router.post("/auth/register", response_model=TokenOut)
+async def auth_register(
+    payload: BrowserRegisterIn,
+    session: AsyncSession = Depends(get_session),
+) -> TokenOut:
+    """Регистрация браузерного пользователя (username/password)."""
+    from datetime import datetime
+
+    from app.services.passwords import hash_password
+
+    existing = (
+        await session.execute(select(User).where(User.username == payload.username))
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(400, "Пользователь с таким именем уже существует")
+
+    pair = (
+        await session.execute(select(LangPair).where(LangPair.code == "ba-ru"))
+    ).scalar_one_or_none()
+
+    user = User(
+        external_id=None,
+        name=payload.name or payload.username,
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        role="student",
+        lang_pair_id=pair.id if pair else None,
+        avatar="🐝",
+        hearts=5,
+        created_at=datetime.utcnow(),
+    )
+    session.add(user)
+    await session.commit()
+
+    token = _create_jwt(user)
+    return TokenOut(access_token=token, token_type="bearer")
+
+
+@router.post("/auth/login", response_model=TokenOut)
+async def auth_login(
+    payload: BrowserLoginIn,
+    session: AsyncSession = Depends(get_session),
+) -> TokenOut:
+    """Вход браузерного пользователя (username/password), возвращает JWT."""
+    from app.services.passwords import verify_password
+
+    user = (
+        await session.execute(select(User).where(User.username == payload.username))
+    ).scalar_one_or_none()
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(400, "Неверное имя пользователя или пароль")
+
+    token = _create_jwt(user)
+    return TokenOut(access_token=token, token_type="bearer")
+
+
+@router.post("/auth/link-telegram")
+async def auth_link_telegram(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user_v1),
+    telegram_id: str | None = Header(default=None, alias="X-Telegram-Id"),
+    telegram_name: str | None = Header(default=None, alias="X-Telegram-Name"),
+) -> dict:
+    """Привязывает Telegram ID к текущему авторизованному браузерному аккаунту."""
+    if not telegram_id:
+        raise HTTPException(400, "telegram-id header required")
+
+    # Проверяем, что этот Telegram ID не занят другим пользователем
+    existing = (
+        await session.execute(select(User).where(User.external_id == telegram_id))
+    ).scalar_one_or_none()
+    if existing and existing.id != user.id:
+        raise HTTPException(400, "Этот Telegram-аккаунт уже привязан к другому профилю")
+
+    user.external_id = telegram_id
+    if telegram_name and not user.name:
+        user.name = telegram_name
+    if not user.username:
+        user.username = f"tg_{telegram_id}"
+    await session.commit()
+
+    return {"ok": True, "external_id": user.external_id}
+
+
+@router.get("/auth/me")
+async def auth_me(
+    user: User = Depends(get_current_user_v1),
+) -> dict:
+    """Текущий авторизованный пользователь."""
+    return {
+        "id": user.id,
+        "external_id": user.external_id,
+        "name": user.name,
+        "username": user.username,
+        "role": user.role,
+        "xp": user.xp or 0,
+        "level": user.level or 1,
+        "avatar": user.avatar,
     }

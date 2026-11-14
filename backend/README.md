@@ -1,20 +1,12 @@
-# Backend (FastAPI)
+# Сайт и API
 
-Серверная часть проекта на FastAPI.
+Запуск всего проекта описан в [корневом README](../README.md).
 
-## Установка
+Коротко, из этой папки, когда база уже работает и в корне заполнен `.env`:
 
 ```bash
-cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
-
-## Запуск
-
-```bash
-uvicorn app.main:app --reload
-```
-
-API будет доступен на http://localhost:8000, документация — http://localhost:8000/docs.

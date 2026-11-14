@@ -168,7 +168,7 @@ async def duel_answer(payload: DuelAnswerIn, session: AsyncSession = Depends(get
         if winner_id:
             winner = await session.get(User, winner_id)
             if winner:
-                add_xp(winner, 30)
+                add_xp(winner, 30, session, reason="duel")
     await session.commit()
 
     if winner_id:

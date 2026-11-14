@@ -81,7 +81,7 @@ async def finish_run(payload: SpeedRunIn, session: AsyncSession = Depends(get_se
 
     xp_gained = payload.score
     if xp_gained:
-        add_xp(user, xp_gained)
+        add_xp(user, xp_gained, session, reason="speed")
         await touch_streak(session, user, xp=xp_gained)
 
     await update_daily_tasks(session, user, speed_done=True)

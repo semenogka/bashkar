@@ -7,7 +7,6 @@ from typing import Optional
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.base import get_session
 from app.models import LangPair, User
+from app.services.passwords import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -40,16 +39,6 @@ class AuthRegister(BaseModel):
 class AuthLogin(BaseModel):
     username: str
     password: str
-
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain: str, hashed: str | None) -> bool:
-    if not hashed:
-        return False
-    return pwd_context.verify(plain, hashed)
 
 
 def create_access_token(subject_id: int, role: str, expires_delta: Optional[int] = None) -> str:

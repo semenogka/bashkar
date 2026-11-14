@@ -259,7 +259,7 @@ async def submit_answer(payload: AnswerIn, session: AsyncSession = Depends(get_s
         if streak_len > 0 and streak_len % 5 == 0:
             streak_bonus = 10
             xp_gained += streak_bonus
-        add_xp(user, xp_gained)
+        add_xp(user, xp_gained, session)
     else:
         note_answer_streak(user, False)
     # Серия и дневной прогресс — за любую активность

@@ -4,14 +4,27 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
+ROOT_DIR = Path(__file__).resolve().parents[3]  # bashkar root
+_ENV_FILE = ROOT_DIR / ".env"
+
+
+def _project_path(value: str) -> str:
+    """Относительные пути считаются от корня проекта, не от текущей папки."""
+    path = Path(value)
+    if path.is_absolute():
+        return str(path)
+    return str((ROOT_DIR / path).resolve())
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=_ENV_FILE if _ENV_FILE.exists() else None,
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     app_name: str = "Башкирская языковая школа"
@@ -23,26 +36,34 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
 
-    # --- PostgreSQL (диск D) ---
+    # --- Telegram бот ---
+    bot_username: str = ""  # например: bashkar_school_bot (без @)
+
+    # --- PostgreSQL ---
     database_url: str = "postgresql+asyncpg://bashkar:bashkar@127.0.0.1:5432/bashkar"
     db_echo: bool = False
 
     # --- LLM ---
     llm_api_base_url: str = "https://api.groq.com/openai/v1/chat/completions"
-    llm_model: str = "llama3-8b-8192"
+    llm_model: str = "openai/gpt-oss-120b"
     llm_api_key: str = ""
     llm_timeout: float = 90.0
 
     # --- TTS / ASR ---
     tts_model: str = "facebook/mms-tts-bak"
     asr_model: str = "AigizK/GigaAM-Bashkir-CV25-ONNX"
-    hf_home: str = "D:/hf-cache"
+    hf_home: str = ".cache/huggingface"
 
-    # --- Файлы ---
-    data_dir: str = str(BASE_DIR.parent / "data")
-    static_dir: str = str(BASE_DIR / "static")
-    frontend_dir: str = str(BASE_DIR.parent / "frontend" / "хакатон")
-    dataset_file: str = str(BASE_DIR.parent / "data" / "phrasebooks.jsonl")
+    # --- Файлы (относительно корня проекта) ---
+    data_dir: str = "data"
+    static_dir: str = "backend/static"
+    frontend_dir: str = "frontend"
+    dataset_file: str = "data/phrasebooks.jsonl"
+
+    @field_validator("data_dir", "static_dir", "frontend_dir", "dataset_file", "hf_home")
+    @classmethod
+    def resolve_project_path(cls, value: str) -> str:
+        return _project_path(value)
 
     # --- Геймификация ---
     hearts_max: int = 5

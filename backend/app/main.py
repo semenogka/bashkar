@@ -25,6 +25,7 @@ from app.api.content import router as content_router  # noqa: E402
 from app.api.duels import router as duels_router  # noqa: E402
 from app.api.learn import router as learn_router  # noqa: E402
 from app.api.leaderboard import router as leaderboard_router  # noqa: E402
+from app.api.school import router as school_router
 from app.api.speech import router as speech_router  # noqa: E402
 from app.api.speed import router as speed_router  # noqa: E402
 from app.api.stats import router as stats_router  # noqa: E402
@@ -80,6 +81,7 @@ for router in (
     stats_router,
     chat_router,
     speech_router,
+    school_router,
     content_router,
     v1_router,
 ):

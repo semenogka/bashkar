@@ -1,24 +1,56 @@
 """Рейтинги: игроки, классы, школы, скорость."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import get_session
-from app.models import ClassGroup, Duel, School, SpeedRun, User, UserAnswer
+from app.models import ClassGroup, Duel, PointsEvent, School, SpeedRun, User, UserAnswer
 from app.schemas import GroupRow, LeaderboardRow
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
+LOCAL_TZ = timezone(timedelta(hours=5))
+
+
+def _period_start(period: str) -> datetime:
+    """Начало дня, месяца или года по времени Уфы (UTC+5)."""
+    now = datetime.now(LOCAL_TZ)
+    if period == "year":
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif period == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc).replace(tzinfo=None)
+
 
 @router.get("/users", response_model=list[LeaderboardRow])
-async def users_leaderboard(limit: int = 50, session: AsyncSession = Depends(get_session)):
+async def users_leaderboard(
+    limit: int = 50,
+    period: str = "day",
+    session: AsyncSession = Depends(get_session),
+):
+    period = period if period in {"day", "month", "year"} else "day"
+    points = (
+        select(PointsEvent.user_id, func.sum(PointsEvent.points).label("pts"))
+        .where(PointsEvent.created_at >= _period_start(period), PointsEvent.points > 0)
+        .group_by(PointsEvent.user_id)
+        .subquery()
+    )
     rows = (
-        await session.execute(select(User).order_by(User.xp.desc()).limit(limit))
-    ).scalars().all()
+        await session.execute(
+            select(User, points.c.pts)
+            .join(points, points.c.user_id == User.id)
+            .order_by(points.c.pts.desc(), User.id)
+            .limit(limit)
+        )
+    ).all()
     result = []
-    for rank, user in enumerate(rows, start=1):
+    for rank, (user, pts) in enumerate(rows, start=1):
         total = (
             await session.execute(
                 select(func.count()).select_from(UserAnswer).where(UserAnswer.user_id == user.id)
@@ -46,7 +78,7 @@ async def users_leaderboard(limit: int = 50, session: AsyncSession = Depends(get
             user_id=user.id,
             name=user.name or f"Ученик {user.id}",
             avatar=user.avatar,
-            xp=user.xp or 0,
+            xp=int(pts or 0),
             level=user.level or 1,
             league=user.league or "bronze",
             streak=user.streak or 0,

@@ -31,7 +31,7 @@ async def chat(payload: ChatIn, session: AsyncSession = Depends(get_session)):
         user = await session.get(User, payload.user_id)
         if user:
             xp_gained = 5
-            add_xp(user, xp_gained)
+            add_xp(user, xp_gained, session, reason="chat")
             await touch_streak(session, user, xp=xp_gained)
             await update_daily_tasks(session, user, card_done=True)
             await session.commit()

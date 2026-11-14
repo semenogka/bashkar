@@ -36,8 +36,17 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_models() -> None:
-    """Создание таблиц (если их ещё нет)."""
+    """Создание таблиц (если их ещё нет) и недостающих колонок."""
+    from sqlalchemy import text
+
     from app import models  # noqa: F401  (регистрация моделей в метаданных)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all не добавляет колонки в уже существующие таблицы.
+        await conn.execute(text(
+            "ALTER TABLE schools ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16)"
+        ))
+        await conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_schools_invite_code ON schools (invite_code)"
+        ))

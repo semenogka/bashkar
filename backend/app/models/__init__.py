@@ -14,6 +14,9 @@ from app.models.activity import (
 from app.models.content import Fragment, LangPair, Language, Translation
 from app.models.lms import (
     Answer,
+    ClassAssignment,
+    ClassAssignmentAnswer,
+    ClassAssignmentItem,
     ExpertReview,
     PointsEvent,
     Source,
@@ -25,6 +28,9 @@ from app.models.users import ClassGroup, School, User
 __all__ = [
     "Answer",
     "Badge",
+    "ClassAssignment",
+    "ClassAssignmentAnswer",
+    "ClassAssignmentItem",
     "ClassGroup",
     "DailyChallenge",
     "DailyTask",

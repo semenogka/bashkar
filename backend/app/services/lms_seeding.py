@@ -5,10 +5,10 @@ import json
 import logging
 from datetime import date, datetime
 
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.passwords import hash_password
 from app.models import (
     Badge,
     ClassGroup,
@@ -26,7 +26,6 @@ from app.models import (
 
 logger = logging.getLogger("bashkar.seeding")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DEMO_PASSWORD = "password123"
 
 DEMO_USERS = [
@@ -72,7 +71,7 @@ async def _get_or_create_user(
         user = User(
             username=username,
             email=f"{username}@bashkar.local",
-            password_hash=pwd_context.hash(DEMO_PASSWORD),
+            password_hash=hash_password(DEMO_PASSWORD),
             role=role,
             name=name,
             xp=points,
