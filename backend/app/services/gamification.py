@@ -163,7 +163,7 @@ async def touch_streak(session: AsyncSession, user: User, *, xp: int = 0) -> Str
         elif gap == 1:
             user.streak = (user.streak or 0) + 1
         else:
-            user.streak = 1  # пропущен день — сброс серии
+            user.streak = 0  # пропущен день — сброс серии в ноль
 
     log.cards_done += 1
     log.xp_earned += xp
@@ -186,12 +186,14 @@ async def ensure_daily_tasks(session: AsyncSession, user: User) -> list[DailyTas
     if existing:
         return list(existing)
 
-    tasks = [
-        DailyTask(user_id=user.id, day=today, code="cards", title=f"Пройди {settings.daily_cards_goal} карточек",
+        tasks = [
+        DailyTask(user_id=user.id, day=today, code="cards", title="Пройдите карточки",
                   progress=0, target=settings.daily_cards_goal, xp_reward=30),
-        DailyTask(user_id=user.id, day=today, code="speed", title="Сыграй в «Быстрый перевод»",
+        DailyTask(user_id=user.id, day=today, code="speed", title="Скоростной забег",
                   progress=0, target=1, xp_reward=20),
-        DailyTask(user_id=user.id, day=today, code="accuracy", title="80% верных ответов за день",
+        DailyTask(user_id=user.id, day=today, code="battle", title="Выиграйте состязание",
+                  progress=0, target=1, xp_reward=30),
+        DailyTask(user_id=user.id, day=today, code="accuracy", title="Точность 80%",
                   progress=0, target=80, xp_reward=25),
     ]
     for t in tasks:
@@ -201,7 +203,8 @@ async def ensure_daily_tasks(session: AsyncSession, user: User) -> list[DailyTas
 
 
 async def update_daily_tasks(session: AsyncSession, user: User, *, card_done: bool = False,
-                             accuracy: float | None = None, speed_done: bool = False) -> list[DailyTask]:
+                             accuracy: float | None = None, speed_done: bool = False,
+                             battle_done: bool = False) -> list[DailyTask]:
     """Обновляет прогресс квестов дня и начисляет награды."""
     tasks = await ensure_daily_tasks(session, user)
     for t in tasks:
@@ -210,6 +213,8 @@ async def update_daily_tasks(session: AsyncSession, user: User, *, card_done: bo
         if t.code == "cards" and card_done:
             t.progress += 1
         elif t.code == "speed" and speed_done:
+            t.progress = min(t.target, t.progress + 1)
+        elif t.code == "battle" and battle_done:
             t.progress = min(t.target, t.progress + 1)
         elif t.code == "accuracy" and accuracy is not None:
             t.progress = min(t.target, int(accuracy))

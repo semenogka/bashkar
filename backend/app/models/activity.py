@@ -179,6 +179,24 @@ class DailyChallenge(Base):
     )
 
 
+class DailyVote(Base):
+    """Голос пользователя в дейлике дня — один голос на пользователя в день."""
+
+    __tablename__ = "daily_votes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    choice: Mapped[str] = mapped_column(String(16), nullable=False)  # "approve" | "reject"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("day", "user_id", name="uq_daily_vote_day_user"),
+    )
+
+
 class VocabProgress(Base):
     """Прогресс по конкретному слову/фразе — «дерево навыков» и повторения."""
 

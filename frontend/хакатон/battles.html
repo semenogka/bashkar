@@ -19,7 +19,7 @@
             <div class="sidebar-top">
                 <a href="index.html" class="sidebar-brand">
                     <div class="brand-emblem">
-                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                        <img src="mascot.jpg" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
                     </div>
                     <div class="brand-titles">
                         <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
@@ -37,6 +37,7 @@
                 <a href="battles.html" class="nav-item active"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
                 <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
                 <a href="profile.html" class="nav-item"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+                <a href="leaderboard.html" class="nav-item"><span class="nav-index">07</span><span class="nav-label">Рейтинг</span></a>
             </nav>
 
             <div class="sidebar-footer">
@@ -68,7 +69,7 @@
                     <h2 class="section-title">Состязания</h2>
                     <div class="segmented-control">
                         <button type="button" class="battle-tab-btn active" data-battletab="sprint">Спринт 60с</button>
-                        <button type="button" class="battle-tab-btn" data-battletab="pvp">PvP Аудио</button>
+                        <button type="button" class="battle-tab-btn" data-battletab="pvp">PvP</button>
                     </div>
                 </div>
 
@@ -100,8 +101,11 @@
                         <div class="card-top-meta">
                             <button type="button" class="btn-xs" id="pvpPlayAudioBtn">▶ Аудио фразы</button>
                             <button type="button" class="btn-primary-clean" id="findPvpMatchBtn">Найти соперника</button>
+                            <span class="mono-tiny" id="pvpTimer">60s</span>
                         </div>
-                        <div class="flashcard-slot" data-model-slot="pvp-question">
+                        <div class="mono-tiny" id="pvpOpponentProgress" style="margin:8px 0;">Соперник: -</div>
+                        <div class="mono-tiny" id="pvpQuestionCounter" style="margin-bottom:8px;">-</div>
+                        <div class="flashcard-slot hidden" data-model-slot="pvp-question" id="pvpQuestionSlot">
                             <div class="slot-word" id="pvpPromptText">[ {{ model.pvp_bashkir_phrase }} ]</div>
                             <div class="options-grid-clean" id="pvpOptionsGrid">
                                 <button type="button" class="opt-btn" disabled>[ Вариант 1 ]</button>
@@ -110,10 +114,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="pvp-search-overlay hidden" id="pvpSearchOverlay">
+                    <div class="pvp-search-modal">
+                        <div class="pvp-spinner"></div>
+                        <div class="pvp-search-title">Поиск соперника</div>
+                        <div class="pvp-search-timer" id="pvpSearchTimerText">60</div>
+                        <div class="pvp-search-sub">Ожидание подключения...</div>
+                    </div>
+                </div>
+
+
             </main>
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

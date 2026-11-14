@@ -19,7 +19,7 @@
             <div class="sidebar-top">
                 <a href="index.html" class="sidebar-brand">
                     <div class="brand-emblem">
-                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                        <img src="mascot.jpg" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
                     </div>
                     <div class="brand-titles">
                         <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
@@ -37,6 +37,7 @@
                 <a href="battles.html" class="nav-item"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
                 <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
                 <a href="profile.html" class="nav-item active"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+                <a href="leaderboard.html" class="nav-item"><span class="nav-index">07</span><span class="nav-label">Рейтинг</span></a>
             </nav>
 
             <div class="sidebar-footer">
@@ -75,6 +76,19 @@
                     <div class="kpi-tile"><span class="mono-tiny">СЛОВ</span><strong id="profileWords">0</strong></div>
                 </div>
 
+                <div class="kpi-row-clean" style="margin-top:10px;">
+                    <div class="kpi-tile"><span class="mono-tiny">УРОВЕНЬ</span><strong id="profileLevel">1</strong></div>
+                    <div class="kpi-tile"><span class="mono-tiny">ОПЫТ (XP)</span><strong id="profileXp">0</strong></div>
+                </div>
+
+                <div class="panel-card" style="margin-top:10px;">
+                    <span class="mono-tiny">ПРОГРЕСС ДО СЛЕДУЮЩЕГО УРОВНЯ</span>
+                    <div class="audio-progress" style="margin-top:8px;">
+                        <div class="audio-bar" id="profileXpBar" style="width:0%"></div>
+                    </div>
+                    <div class="mono-tiny" style="margin-top:6px;" id="profileXpText">0 / 0 XP</div>
+                </div>
+
                 <div class="panel-card">
                     <span class="mono-tiny">ЯЗЫК ИНТЕРФЕЙСА И ПЕРЕВОДА</span>
                     <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
@@ -109,6 +123,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

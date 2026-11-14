@@ -19,7 +19,7 @@
             <div class="sidebar-top">
                 <a href="hub.html" class="sidebar-brand">
                     <div class="brand-emblem">
-                        <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
+                        <img src="mascot.jpg" onerror="this.onerror=null; this.src='-.png';" alt="БезТел" class="brand-mascot-mini">
                     </div>
                     <div class="brand-titles">
                         <span class="brand-kicker">БАШҠОРТ ТЕЛЕ</span>
@@ -37,6 +37,7 @@
                 <a href="battles.html" class="nav-item"><span class="nav-index">04</span><span class="nav-label">Состязания</span></a>
                 <a href="export.html" class="nav-item"><span class="nav-index">05</span><span class="nav-label">Экспорт базы</span></a>
                 <a href="profile.html" class="nav-item"><span class="nav-index">06</span><span class="nav-label">Профиль</span></a>
+                <a href="leaderboard.html" class="nav-item"><span class="nav-index">07</span><span class="nav-label">Рейтинг</span></a>
             </nav>
 
             <div class="sidebar-footer">
@@ -67,57 +68,15 @@
             </header>
 
             <main class="editorial-main">
-                <section class="hub-hero-grid">
-                    <div class="hub-welcome-card">
-                        <div class="welcome-top-row">
-                            <div>
-                                <span class="editorial-kicker">СӘЛӘМ • ПЕРСОНАЛЬНЫЙ РИТМ</span>
-                                <h2 class="monumental-title">Һаумыһығыҙ, <span id="heroUserName">Ученик</span></h2>
-                                <p class="editorial-lead">Каждый день по 5 минут — и речь Южного Урала станет родной.</p>
-                            </div>
-                            <div class="mascot-atmospheric">
-                                <div class="mascot-aura"></div>
-                                <img src="mascot.png" onerror="this.onerror=null; this.src='-.png';" alt="Пчёлка БезТел" class="showcase-img">
-                            </div>
-                        </div>
-
-                        <div class="week-rhythm-bar">
-                            <div class="rhythm-header">
-                                <span class="mono-tiny">НЕДЕЛЬНЫЙ СТРИК</span>
-                                <span class="mono-tiny text-amber" id="streakMotivationText">Начни серию сегодня</span>
-                            </div>
-                            <div class="days-dots-row">
-                                <div class="day-pill"><span>Пн</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Вт</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Ср</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Чт</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Пт</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Сб</span><i class="dot"></i></div>
-                                <div class="day-pill"><span>Вс</span><i class="dot"></i></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="hub-goal-card">
-                        <span class="mono-tiny">ЦЕЛЬ НА СЕГОДНЯ</span>
-                        <div class="goal-ring-wrapper">
-                            <svg class="goal-svg" viewBox="0 0 120 120">
-                                <circle class="goal-track" cx="60" cy="60" r="50"></circle>
-                                <circle class="goal-progress" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"></circle>
-                            </svg>
-                            <div class="goal-center-text">
-                                <strong>0/10</strong>
-                                <span>слов</span>
-                            </div>
-                        </div>
-                        <a href="study.html" class="btn-primary-clean full-width-center">Продолжить занятие →</a>
-                    </div>
-                </section>
+                <div class="panel-card" style="margin-bottom:12px;">
+                    <span class="mono-tiny">ЗАДАНИЯ НА ДЕНЬ</span>
+                    <div id="dailyTasksSlot" class="empty-slot-box" style="margin-top:8px;">Загрузка...</div>
+                </div>
 
                 <section class="hub-content-grid">
-                    <article class="panel-card inspiration-slot-card" data-model-slot="hub-daily-insight">
+                    <article class="panel-card inspiration-slot-card" data-model-slot="hub-daily-insight" style="max-width:520px;">
                         <div class="card-top-meta">
-                            <span class="slot-code">СЛОВО ИЛИ МУДРОСТЬ ДНЯ • AI SLOT</span>
+                            <span class="slot-code">СЛОВО ДНЯ • ОБНОВЛЯЕТСЯ РАЗ В СУТКИ</span>
                             <span class="mono-tiny">Культурный код</span>
                         </div>
                         <div class="insight-body">
@@ -126,23 +85,11 @@
                             <p class="insight-note" id="hubInsightContext">Слот для выражения или пословицы дня от вашей языковой модели.</p>
                         </div>
                     </article>
-
-                    <article class="panel-card personal-metrics-card">
-                        <div class="card-top-meta">
-                            <span class="mono-tiny">МОЙ ПРОГРЕСС</span>
-                            <span class="mono-tiny text-amber">Лига Курая</span>
-                        </div>
-                        <div class="mini-stats-list">
-                            <div class="mini-stat-line"><span>Слов в словаре</span><strong>0</strong></div>
-                            <div class="mini-stat-line"><span>Точность с 1-й попытки</span><strong>—%</strong></div>
-                            <div class="mini-stat-line"><span>Дейлик сегодня</span><strong>Не пройден</strong></div>
-                        </div>
-                    </article>
                 </section>
             </main>
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

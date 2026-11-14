@@ -6,6 +6,7 @@ const ModelService = {
     BASE_URL: '/api/v1',
     sessionExportBuffer: [],
     _history: [],
+    _clientId: null,
     _uiLang: localStorage.getItem('beztel_ui_lang') || 'ru',
     _chatLang: localStorage.getItem('beztel_chat_lang') || 'ru',
     _targetLang: localStorage.getItem('beztel_chat_lang') || 'ru',
@@ -19,6 +20,14 @@ const ModelService = {
             h['X-Telegram-Id'] = String(user.id);
             h['X-Telegram-Name'] = user.first_name || '';
         }
+        if (!this._clientId) {
+            try { this._clientId = sessionStorage.getItem('beztel_pvp_client_id'); } catch (e) {}
+            if (!this._clientId) {
+                this._clientId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (String(Math.random()).slice(2) + Date.now());
+                try { sessionStorage.setItem('beztel_pvp_client_id', this._clientId); } catch (e) {}
+            }
+        }
+        h['X-Client-Id'] = this._clientId;
         return h;
     },
 
@@ -126,6 +135,18 @@ const ModelService = {
         return this._post('/daily/vote', { approved: !!isApprovedByUser });
     },
 
+    async fetchDailyTasks() {
+        return this._get('/daily/tasks');
+    },
+
+    async dailyApprove(bashkirText, proposed) {
+        return this._post('/daily/check', {
+            bashkir_text: bashkirText,
+            original_proposed: proposed,
+            approved: true,
+        });
+    },
+
     // ---------- Состязания ----------
     async fetchBattlePrompt(mode = 'sprint') {
         return this._get('/battles/prompt?mode=' + mode);
@@ -147,6 +168,30 @@ const ModelService = {
 
     async fetchExportBatch(count = 20) {
         return this._get('/cards/batch?count=' + count);
+    },
+
+    async pvpFind() {
+        return this._post('/pvp/find', {});
+    },
+    async pvpStatus() {
+        return this._get('/pvp/status');
+    },
+    async pvpCancel() {
+        return this._post('/pvp/cancel', {});
+    },
+    async pvpProgress(index, score, done) {
+        return this._post('/pvp/progress', { index: index || 0, score: score || 0, done: !!done });
+    },
+    async awardXp(amount, reason) {
+        return this._post('/xp/award', { amount: amount || 0, reason: reason || '' });
+    },
+    async sprintFinish(score) {
+        return this._post('/sprint/finish', { score: score || 0 });
+    },
+    async fetchLeaderboard() {
+        const res = await fetch(this._origin() + '/api/leaderboard/users?limit=50', { headers: this._tgHeaders() });
+        if (!res.ok) throw new Error('API error ' + res.status);
+        return res.json();
     },
 
     setUiLang(lang) {
@@ -298,6 +343,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---------- ХАБ ----------
     if (currentPage === 'hub') {
+        async function loadDailyTasks() {
+            const slot = document.getElementById('dailyTasksSlot');
+            if (!slot) return;
+            try {
+                const tasks = await ModelService.fetchDailyTasks();
+                slot.classList.remove('empty-slot-box');
+                slot.innerHTML = tasks.map((t) => `
+                    <div class="ach-row">
+                        <span>${t.completed ? '✓' : '○'}</span>
+                        <div>
+                            <strong>${escapeHtml(t.title)}</strong>
+                            <p>${t.progress}/${t.target} • ${t.xp_reward} XP</p>
+                        </div>
+                    </div>`).join('');
+            } catch (e) {
+                slot.innerHTML = '<p>Не удалось загрузить задания.</p>';
+            }
+        }
+        loadDailyTasks();
+
         const heroUserName = document.getElementById('heroUserName');
         if (heroUserName) heroUserName.textContent = firstName;
         try {
@@ -306,20 +371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('hubInsightTranslation').textContent = insight.translation_ru;
             document.getElementById('hubInsightContext').textContent = insight.cultural_note;
         } catch (e) {}
-        try {
-            const profile = await ModelService.fetchProfile();
-            const lines = document.querySelectorAll('.mini-stat-line strong');
-            if (lines.length >= 3) {
-                lines[0].textContent = String(profile.words);
-                lines[1].textContent = `${profile.accuracy}%`;
-                lines[2].textContent = profile.streak > 0 ? 'Пройден' : 'Не пройден';
-            }
-            const ring = document.querySelector('.goal-progress');
-            if (ring) {
-                const pct = Math.min(100, profile.words);
-                ring.style.strokeDashoffset = String(314 - 314 * pct / 100);
-            }
-        } catch (e) {}
+        // только слово дня; профиль/статистика убраны с хаба
     }
 
     // ---------- ЧАТ ----------
@@ -620,6 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const verdictBox = document.getElementById('correctionVerdictBox');
         let locked = false;
 
+
         try {
             const task = await ModelService.fetchDailyTask();
             document.getElementById('dailyBashkirText').textContent = task.bashkir_text;
@@ -641,6 +694,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : `✕ <strong>Неточно.</strong> Вы писали: «${escapeHtml(task.user_answer || '')}».`;
                 document.getElementById('dailyVotingLocked')?.classList.add('hidden');
                 document.getElementById('dailyVotingResults')?.classList.remove('hidden');
+                const vs = task.vote_stats || {};
+                const truePct = (vs.approvePercent != null) ? vs.approvePercent : 0;
+                const falsePct = (vs.rejectPercent != null) ? vs.rejectPercent : 0;
+                const trueEl = document.getElementById('voteTruePercent');
+                const falseEl = document.getElementById('voteFalsePercent');
+                const trueBar = document.getElementById('voteTrueBar');
+                const falseBar = document.getElementById('voteFalseBar');
+                if (trueEl) trueEl.textContent = `${truePct}%`;
+                if (falseEl) falseEl.textContent = `${falsePct}%`;
+                if (trueBar) trueBar.style.width = `${truePct}%`;
+                if (falseBar) falseBar.style.width = `${falsePct}%`;
             }
         } catch (e) {}
 
@@ -659,6 +723,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             locked = true;
             approveBtn.disabled = true;
             rejectBtn.disabled = true;
+            try {
+                await ModelService.dailyApprove(
+                    document.getElementById('dailyBashkirText').textContent,
+                    document.getElementById('dailyProposedTranslation').textContent
+                );
+            } catch (e) {}
             await showVotes(true);
         });
 
@@ -753,6 +823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     clearInterval(interval);
                     opts.forEach(b => b.disabled = true);
                     startBtn.disabled = false;
+                    ModelService.sprintFinish(score).catch(() => {});
                 }
             }, 1000);
         });
@@ -762,34 +833,277 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pvpOpts = document.querySelectorAll('#pvpOptionsGrid .opt-btn');
         const findPvpBtn = document.getElementById('findPvpMatchBtn');
         const pvpPlayBtn = document.getElementById('pvpPlayAudioBtn');
-        let pvpPrompt = null;
+        const pvpSearchOverlay = document.getElementById('pvpSearchOverlay');
+        const pvpSearchTimerText = document.getElementById('pvpSearchTimerText');
+        const pvpTimerEl = document.getElementById('pvpTimer');
+        const pvpOpponentProgressEl = document.getElementById('pvpOpponentProgress');
+        const pvpQuestionCounterEl = document.getElementById('pvpQuestionCounter');
+        const pvpQuestionSlot = document.getElementById('pvpQuestionSlot');
 
-        async function loadPvp() {
+        let pvpPrompt = null;
+        let pvpQuestions = [];
+        let pvpMatchStartedAt = null;
+        let pvpDuration = 60;
+        let pvpCurrentIndex = 0;
+        let pvpScore = 0;
+        let pvpOpponentScore = 0;
+        let pvpFinished = false;
+
+        let pvpSearchTimer = null;
+        let pvpSearchLeft = 0;
+        let pvpGameTimer = null;
+        let pvpPollTimer = null;
+
+        function stopPvpSearch(message) {
+            if (pvpSearchTimer) {
+                clearInterval(pvpSearchTimer);
+                pvpSearchTimer = null;
+            }
+            if (pvpSearchOverlay) pvpSearchOverlay.classList.add('hidden');
+            findPvpBtn.disabled = false;
+            findPvpBtn.textContent = 'Найти соперника';
+            if (message) {
+                pvpPromptText.textContent = message;
+            }
+            ModelService.pvpCancel().catch(() => {});
+        }
+
+        function renderPvpQuestion() {
             try {
-                const prompt = await ModelService.fetchBattlePrompt('pvp');
-                pvpPrompt = prompt;
-                pvpPromptText.textContent = prompt.pvp_bashkir_phrase;
+                if (pvpCurrentIndex >= pvpQuestions.length) {
+                    finishPvp();
+                    return;
+                }
+                pvpPrompt = pvpQuestions[pvpCurrentIndex];
+                if (pvpPromptText) pvpPromptText.textContent = pvpPrompt.pvp_bashkir_phrase;
+                if (pvpQuestionCounterEl) {
+                    pvpQuestionCounterEl.textContent = `Вопрос ${pvpCurrentIndex + 1} / ${pvpQuestions.length}`;
+                }
+                if (pvpQuestionSlot) pvpQuestionSlot.classList.remove('hidden');
                 pvpOpts.forEach((btn, idx) => {
-                    btn.textContent = prompt.options[idx] || '';
+                    btn.textContent = pvpPrompt.options[idx] || '';
                     btn.disabled = false;
+                    btn.style.borderColor = '';
                     btn.onclick = () => {
-                        pvpOpts.forEach(b => b.disabled = true);
-                        if (idx === prompt.correct_index) {
+                        pvpOpts.forEach((b) => { b.disabled = true; });
+                        const correct = idx === pvpPrompt.correct_index;
+                        if (correct) {
                             btn.style.borderColor = 'var(--accent-success)';
+                            pvpScore += 1;
                         } else {
                             btn.style.borderColor = 'var(--accent-danger)';
                         }
-                        setTimeout(loadPvp, 700);
+                        try { if (pvpSocket) pvpSocket.send(JSON.stringify({type:'progress', index: pvpCurrentIndex + 1, score: pvpScore, done: false})); } catch (e) {}
+                        pvpCurrentIndex += 1;
+                        setTimeout(() => {
+                            if (pvpCurrentIndex >= pvpQuestions.length) {
+                                finishPvp();
+                            } else {
+                                renderPvpQuestion();
+                            }
+                        }, 700);
                     };
                 });
-            } catch (e) {}
+            } catch (e) {
+                console.error('renderPvpQuestion error:', e);
+            }
         }
 
-        findPvpBtn.addEventListener('click', loadPvp);
+        async function finishPvp(state) {
+            if (pvpFinished) return;
+            pvpFinished = true;
+            if (pvpGameTimer) { clearInterval(pvpGameTimer); pvpGameTimer = null; }
+            if (pvpPollTimer) { clearInterval(pvpPollTimer); pvpPollTimer = null; }
+            try { if (pvpSocket) pvpSocket.send(JSON.stringify({type:'progress', index: pvpCurrentIndex, score: pvpScore, done: true})); } catch (e) {}
+            let oppScore = pvpOpponentScore;
+            let text = '';
+            if (state && state.winner === 'draw') {
+                text = `Ничья! Вы: ${pvpScore}, соперник: ${oppScore}`;
+            } else if (state && state.winner_is_you) {
+                text = `Вы победили! Вы: ${pvpScore}, соперник: ${oppScore}`;
+            } else if (state && state.winner) {
+                text = `Соперник победил. Вы: ${pvpScore}, соперник: ${oppScore}`;
+            } else {
+                if (pvpScore > oppScore) text = `Вы победили! Вы: ${pvpScore}, соперник: ${oppScore}`;
+                else if (pvpScore < oppScore) text = `Соперник победил. Вы: ${pvpScore}, соперник: ${oppScore}`;
+                else text = `Ничья! Вы: ${pvpScore}, соперник: ${oppScore}`;
+            }
+            if (pvpQuestionSlot) pvpQuestionSlot.classList.add('hidden');
+            try { sessionStorage.removeItem('beztel_pvp_match_id'); } catch (e) {}
+            pvpPromptText.textContent = text;
+            pvpOpts.forEach((b) => { b.disabled = true; });
+            findPvpBtn.disabled = false;
+            findPvpBtn.textContent = 'Найти соперника';
+        }
+
+        let pvpSocket = null;
+
+        findPvpBtn.addEventListener('click', () => {
+            if (pvpSocket) return;
+            pvpFinished = false;
+            pvpCurrentIndex = 0;
+            pvpScore = 0;
+            pvpQuestions = [];
+            pvpMatchStartedAt = null;
+            const pvpQuestionSlot = document.getElementById('pvpQuestionSlot');
+            if (pvpQuestionSlot) pvpQuestionSlot.classList.add('hidden');
+            pvpPromptText.textContent = 'Ожидание соперника...';
+            pvpOpts.forEach((b) => {
+                b.disabled = true;
+                b.textContent = '...';
+                b.style.borderColor = '';
+            });
+            if (pvpOpponentProgressEl) pvpOpponentProgressEl.textContent = 'Соперник: -';
+            if (pvpQuestionCounterEl) pvpQuestionCounterEl.textContent = '-';
+            if (pvpTimerEl) pvpTimerEl.textContent = '60s';
+            if (pvpSearchOverlay) pvpSearchOverlay.classList.remove('hidden');
+            findPvpBtn.disabled = true;
+            try { sessionStorage.setItem('beztel_pvp_searching', '1'); } catch (e) {}
+            pvpSearchLeft = 60;
+            if (pvpSearchTimerText) pvpSearchTimerText.textContent = String(pvpSearchLeft);
+            findPvpBtn.textContent = `Поиск... ${pvpSearchLeft}s`;
+
+            const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v1/pvp/ws?client_id=' + encodeURIComponent(ModelService._clientId);
+            pvpSocket = new WebSocket(wsUrl);
+
+            const searchTimer = setInterval(() => {
+                pvpSearchLeft -= 1;
+                if (pvpSearchTimerText) pvpSearchTimerText.textContent = String(Math.max(0, pvpSearchLeft));
+                if (pvpSearchLeft > 0) {
+                    findPvpBtn.textContent = `Поиск... ${pvpSearchLeft}s`;
+                } else {
+                    clearInterval(searchTimer);
+                    try { pvpSocket.send(JSON.stringify({type:'cancel'})); } catch (e) {}
+                    pvpSocket.close();
+                    pvpSocket = null;
+                    if (pvpSearchOverlay) pvpSearchOverlay.classList.add('hidden');
+                    findPvpBtn.disabled = false;
+                    findPvpBtn.textContent = 'Найти соперника';
+                    try { sessionStorage.removeItem('beztel_pvp_match_id'); } catch (e) {}
+                    try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
+                    pvpPromptText.textContent = 'Соперник не найден за 60 секунд. Поиск прерван.';
+                }
+            }, 1000);
+
+            pvpSocket.onopen = () => {
+                try { pvpSocket.send(JSON.stringify({type:'find'})); } catch (e) {}
+            };
+
+            pvpSocket.onmessage = (ev) => {
+                let msg = {};
+                try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+                if (msg.type === 'searching') {
+                    // ждём
+                } else if (msg.type === 'matched') {
+                    clearInterval(searchTimer);
+                    try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
+                    if (pvpSearchOverlay) pvpSearchOverlay.classList.add('hidden');
+                    findPvpBtn.disabled = false;
+                    findPvpBtn.textContent = 'Найти соперника';
+
+                    pvpQuestions = msg.questions || [];
+                    try { sessionStorage.setItem('beztel_pvp_match_id', msg.match_id || ''); } catch (e) {}
+                    pvpMatchStartedAt = msg.started_at;
+                    pvpDuration = msg.duration || 60;
+                    pvpPromptText.textContent = 'Соперник найден! Переведите фразу:';
+
+                    let pvpRem = pvpDuration;
+                    if (pvpTimerEl) pvpTimerEl.textContent = pvpRem + 's';
+                    pvpGameTimer = setInterval(() => {
+                        pvpRem -= 1;
+                        if (pvpTimerEl) pvpTimerEl.textContent = Math.max(0, pvpRem) + 's';
+                        if (pvpRem <= 0 && !pvpFinished) {
+                            try { pvpSocket.send(JSON.stringify({type:'time_up'})); } catch (e) {}
+                            finishPvp();
+                        }
+                    }, 1000);
+
+                    renderPvpQuestion();
+                } else if (msg.type === 'opponent_progress') {
+                    pvpOpponentScore = msg.score || 0;
+                    if (pvpOpponentProgressEl) {
+                        pvpOpponentProgressEl.textContent = `Соперник: вопрос ${msg.index + 1}/${pvpQuestions.length || 10}, очки ${msg.score}`;
+                    }
+                } else if (msg.type === 'finished') {
+                    if (!pvpFinished) {
+                        pvpFinished = true;
+                        if (pvpGameTimer) { clearInterval(pvpGameTimer); pvpGameTimer = null; }
+                        if (pvpQuestionSlot) pvpQuestionSlot.classList.remove('hidden');
+                        const oppScore = (msg.opponent_score != null) ? msg.opponent_score : 0;
+                        let text = '';
+                        if (msg.winner === 'draw') text = `Ничья! Вы: ${msg.your_score}, соперник: ${oppScore}`;
+                        else if (msg.winner_is_you) text = `Вы победили! Вы: ${msg.your_score}, соперник: ${oppScore}`;
+                        else text = `Соперник победил. Вы: ${msg.your_score}, соперник: ${oppScore}`;
+                        pvpPromptText.textContent = text;
+                        pvpOpts.forEach((b) => { b.disabled = true; });
+                        try { sessionStorage.removeItem('beztel_pvp_match_id'); } catch (e) {}
+                        try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
+                        setTimeout(() => { try { if (pvpSocket) pvpSocket.close(); } catch (e) {} pvpSocket = null; }, 300);
+                        if (msg.winner_is_you) {
+                            ModelService.awardXp(30, 'pvp_win').catch(() => {});
+                        }
+                    }
+                } else if (msg.type === 'opponent_left') {
+                    if (!pvpFinished) {
+                        pvpFinished = true;
+                        if (pvpGameTimer) { clearInterval(pvpGameTimer); pvpGameTimer = null; }
+                        try { sessionStorage.removeItem('beztel_pvp_match_id'); } catch (e) {}
+                        try { sessionStorage.removeItem('beztel_pvp_searching'); } catch (e) {}
+                        pvpPromptText.textContent = 'Соперник покинул матч.';
+                        pvpOpts.forEach((b) => { b.disabled = true; });
+                    }
+                }
+            };
+
+            pvpSocket.onclose = () => {
+                pvpSocket = null;
+            };
+        });
+
         pvpPlayBtn.addEventListener('click', () => {
             if (pvpPrompt) ModelService.speakText(pvpPrompt.pvp_bashkir_phrase);
         });
-        loadPvp();
+
+        // автовосстановление матча после обновления страницы
+        try {
+            if (sessionStorage.getItem('beztel_pvp_match_id') || sessionStorage.getItem('beztel_pvp_searching')) {
+                setTimeout(() => { findPvpBtn.click(); }, 300);
+            }
+        } catch (e) {}
+
+    }
+
+    // ---------- РЕЙТИНГ ----------
+    if (currentPage === 'leaderboard') {
+        async function loadLeaderboardPage() {
+            const slot = document.getElementById('leaderboardSlot');
+            if (!slot) return;
+            try {
+                const rows = await ModelService.fetchLeaderboard();
+                slot.classList.remove('empty-slot-box');
+                slot.innerHTML = `
+                    <table style="width:100%; font-size:12px; border-collapse:collapse;">
+                        <thead><tr>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-muted);">#</th>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-muted);">Игрок</th>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-muted);">Уровень</th>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-muted);">XP</th>
+                        </tr></thead>
+                        <tbody>${rows.map(r => `
+                            <tr>
+                                <td style="padding:4px 8px; border-top:1px solid var(--border-hairline);">${r.rank}</td>
+                                <td style="padding:4px 8px; border-top:1px solid var(--border-hairline);">${escapeHtml(r.name)} ${r.avatar || ''}</td>
+                                <td style="padding:4px 8px; border-top:1px solid var(--border-hairline);">${r.level}</td>
+                                <td style="padding:4px 8px; border-top:1px solid var(--border-hairline);">${r.xp}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>`;
+            } catch (e) {
+                slot.innerHTML = '<p>Не удалось загрузить рейтинг.</p>';
+            }
+        }
+        loadLeaderboardPage();
     }
 
     // ---------- ЭКСПОРТ ----------
@@ -838,6 +1152,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('profileAccuracy').textContent = `${profile.accuracy}%`;
             document.getElementById('profileRank').textContent = `#${profile.rank}`;
             document.getElementById('profileWords').textContent = String(profile.words);
+            const lvlEl = document.getElementById('profileLevel');
+            const xpEl = document.getElementById('profileXp');
+            if (lvlEl) lvlEl.textContent = String(profile.level || 1);
+            if (xpEl) xpEl.textContent = String(profile.xp || 0);
+            const bar = document.getElementById('profileXpBar');
+            const txt = document.getElementById('profileXpText');
+            const cur = profile.xp_current_level || 0;
+            const need = profile.xp_for_next_level || 1;
+            if (bar) bar.style.width = Math.min(100, Math.round(cur / need * 100)) + '%';
+            if (txt) txt.textContent = `${cur} / ${need} XP`;
         } catch (e) {}
 
         const uiLangSelect = document.getElementById('uiLangSelect');
